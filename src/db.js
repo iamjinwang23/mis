@@ -31,7 +31,7 @@ export async function saveReport({ type, filename, reportDate, data }) {
 export async function listReports(type) {
   let query = supabase
     .from('reports')
-    .select('id, type, filename, report_date, uploaded_at')
+    .select('id, type, filename, report_date, uploaded_at, data')
     .order('report_date', { ascending: false });
   if (type) query = query.eq('type', type);
   const { data, error } = await query;
