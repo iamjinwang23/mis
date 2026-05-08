@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL?.trim(),
-  import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
+  import.meta.env.VITE_SUPABASE_ANON_KEY?.replace(/\s/g, '')
 );
 
 function toRow(record) {
