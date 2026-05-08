@@ -14,6 +14,18 @@ export default function UploadView({ onUploaded }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [dupConfirm, setDupConfirm] = useState(null); // { resolve, sameDate, newFile, type, reportDate, dateSource, parsed }
+
+  const doSave = async ({ type, filename, reportDate, data, parsed, dateSource, sameDate, replaced }) => {
+    const id = await saveReport({ type, filename, reportDate, data: parsed });
+    setResult({
+      ok: true, type, reportDate, filename, id,
+      dateSource,
+      replaced,
+      replacedFilename: sameDate?.filename,
+    });
+    onUploaded(type, id);
+  };
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -31,27 +43,21 @@ export default function UploadView({ onUploaded }) {
       const type = detectFileType(buffer);
 
       let parsed;
-      if (type === 'gfp') {
-        parsed = parseGFPReport(buffer);
-      } else if (type === 'retail') {
-        parsed = parseRetailReport(buffer);
-      } else if (type === 'auto') {
-        parsed = parseAutoReport(buffer);
-      } else {
-        throw new Error(
-          '파일 형식을 인식할 수 없습니다.\n' +
-          '· GFP 총괄 보고서: "순번" + "지점명" 헤더가 있어야 합니다.\n' +
-          '· 리테일 사업부: "일일실적현황" 시트가 있어야 합니다.\n' +
-          '· 자동차 보험: "2604" 같은 월별 시트가 있어야 합니다.'
-        );
-      }
+      if (type === 'gfp') parsed = parseGFPReport(buffer);
+      else if (type === 'retail') parsed = parseRetailReport(buffer);
+      else if (type === 'auto') parsed = parseAutoReport(buffer);
+      else throw new Error(
+        '파일 형식을 인식할 수 없습니다.\n' +
+        '· GFP 총괄 보고서: "순번" + "지점명" 헤더가 있어야 합니다.\n' +
+        '· 리테일 사업부: "일일실적현황" 시트가 있어야 합니다.\n' +
+        '· 자동차 보험: "2604" 같은 월별 시트가 있어야 합니다.'
+      );
 
-      // 날짜 결정: 파일명 우선 → 파일 내용 fallback → 현재 날짜
       const dateFromName = parseDateFromFilename(file.name);
       const dateFromFile = parsed.reportDate;
       const reportDate = dateFromName || dateFromFile || new Date();
+      const dateSource = dateFromName ? 'filename' : 'filecontent';
 
-      // 중복 날짜: 발견 시 사용자에게 교체 여부 확인 (취소 시 업로드 중단)
       const existing = await listReports(type);
       const sameDate = existing.find(r => {
         const d = new Date(r.reportDate);
@@ -60,37 +66,13 @@ export default function UploadView({ onUploaded }) {
                d.getDate() === reportDate.getDate();
       });
 
-      let replaced = false;
       if (sameDate) {
-        const ok = window.confirm(
-          `${fmtDate(reportDate)} 날짜의 ${typeLabel(type)} 데이터가 이미 있어요.\n\n` +
-          `기존 파일: ${sameDate.filename}\n` +
-          `새 파일: ${file.name}\n\n` +
-          `[확인] 기존 데이터를 삭제하고 새 파일로 교체합니다.\n` +
-          `[취소] 업로드를 중단합니다.`
-        );
-        if (!ok) {
-          setLoading(false);
-          return;
-        }
-        await deleteReport(sameDate.id);
-        replaced = true;
+        setLoading(false);
+        setDupConfirm({ sameDate, file, type, reportDate, dateSource, parsed });
+        return;
       }
 
-      const id = await saveReport({
-        type,
-        filename: file.name,
-        reportDate,
-        data: parsed,
-      });
-
-      setResult({
-        ok: true, type, reportDate, filename: file.name, id,
-        dateSource: dateFromName ? 'filename' : 'filecontent',
-        replaced,
-        replacedFilename: sameDate?.filename,
-      });
-      onUploaded(type, id);
+      await doSave({ type, filename: file.name, reportDate, parsed, dateSource, sameDate: null, replaced: false });
     } catch (err) {
       setError(err.message || '파일 처리 중 오류가 발생했습니다.');
     } finally {
@@ -98,10 +80,77 @@ export default function UploadView({ onUploaded }) {
     }
   };
 
+  const handleDupReplace = async () => {
+    const { sameDate, file, type, reportDate, dateSource, parsed } = dupConfirm;
+    setDupConfirm(null);
+    setLoading(true);
+    try {
+      await deleteReport(sameDate.id);
+      await doSave({ type, filename: file.name, reportDate, parsed, dateSource, sameDate, replaced: true });
+    } catch (err) {
+      setError(err.message || '파일 처리 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDupCancel = () => setDupConfirm(null);
+
   const reset = () => { setResult(null); setError(null); };
 
   return (
     <div className="page-wrap" style={{ maxWidth: 640 }}>
+
+      {/* 중복 확인 모달 */}
+      {dupConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }}>
+          <div style={{
+            background: T.card, borderRadius: RADIUS.lg,
+            border: `1px solid ${T.border}`,
+            padding: 28, maxWidth: 440, width: '100%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: T.text, marginBottom: 16 }}>
+              이미 같은 날짜 데이터가 있어요
+            </div>
+            <div style={{ fontSize: 14, color: T.textDim, marginBottom: 8 }}>
+              <span style={{ color: T.textMute }}>날짜: </span>
+              <span style={{ fontFamily: MONO_STACK, color: T.text }}>{fmtDate(dupConfirm.reportDate)}</span>
+              <span style={{ marginLeft: 8, fontSize: 13, padding: '1px 6px', borderRadius: 3, background: `${typeColor(dupConfirm.type)}18`, color: typeColor(dupConfirm.type) }}>
+                {typeLabel(dupConfirm.type)}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: T.textMute, marginBottom: 4 }}>
+              기존: <span style={{ fontFamily: MONO_STACK, color: T.textDim }}>{dupConfirm.sameDate.filename}</span>
+            </div>
+            <div style={{ fontSize: 13, color: T.textMute, marginBottom: 20 }}>
+              새 파일: <span style={{ fontFamily: MONO_STACK, color: T.textDim }}>{dupConfirm.file.name}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" onClick={handleDupReplace} style={{
+                flex: 1, padding: '10px 0', borderRadius: RADIUS.xs,
+                background: T.accent, color: T.bg,
+                fontSize: 14, fontWeight: 700, cursor: 'pointer', border: 'none',
+              }}>
+                교체하기
+              </button>
+              <button type="button" onClick={handleDupCancel} style={{
+                flex: 1, padding: '10px 0', borderRadius: RADIUS.xs,
+                background: 'transparent', color: T.textDim,
+                fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                border: `1px solid ${T.border}`,
+              }}>
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>파일 업로드</h1>
         <p style={{ fontSize: 18, color: T.textDim }}>
