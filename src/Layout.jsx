@@ -258,7 +258,7 @@ export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, c
 
         {/* Footer */}
         <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}`, fontSize: 11, color: D.textMute, fontFamily: MONO_STACK }}>
-          로컬 전용 · 데이터 브라우저 저장
+          Cloud · Supabase
         </div>
       </aside>
 
