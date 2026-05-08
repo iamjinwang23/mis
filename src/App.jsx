@@ -157,6 +157,7 @@ export default function App() {
   const [selectedRetailId, setSelectedRetailId] = useState(null);
   const [selectedRetailIdFrom, setSelectedRetailIdFrom] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState(null);
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -189,18 +190,18 @@ export default function App() {
 
   const handleNav = (newNav) => setNav(newNav);
 
+  const showSnackbar = (message) => {
+    setSnackbar(message);
+    setTimeout(() => setSnackbar(null), 3000);
+  };
+
   const handleUploaded = async (type, id) => {
     await loadReports();
-    if (type === 'gfp') {
-      setSelectedGfpId(id);
-      setNav({ section: 'gfp', page: 'dashboard' });
-    } else if (type === 'retail') {
-      setSelectedRetailId(id);
-      setNav({ section: 'retail', page: 'dashboard' });
-    } else {
-      setSelectedAutoId(id);
-      setNav({ section: 'auto', page: 'dashboard' });
-    }
+    if (type === 'gfp') setSelectedGfpId(id);
+    else if (type === 'retail') setSelectedRetailId(id);
+    else setSelectedAutoId(id);
+    const labels = { gfp: 'GFP 총괄', retail: '리테일 사업부', auto: '자동차 보험' };
+    showSnackbar(`${labels[type] || type} 업로드 완료`);
   };
 
   const currentGfp = gfpReports.find(r => r.id === selectedGfpId) || gfpReports[0] || null;
@@ -306,6 +307,20 @@ export default function App() {
       autoCount={autoReports.length}
       retailCount={retailReports.length}
     >
+      {snackbar && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9999, padding: '12px 24px', borderRadius: RADIUS.md,
+          background: T.green, color: '#fff',
+          fontSize: 15, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
+          pointerEvents: 'none',
+          animation: 'fadeInUp 0.2s ease',
+        }}>
+          {snackbar}
+          <style>{`@keyframes fadeInUp { from { opacity:0; transform: translateX(-50%) translateY(8px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }`}</style>
+        </div>
+      )}
       {/* Top bar */}
       {(section === 'gfp' || section === 'auto' || section === 'retail') && currentReports.length > 0 && (
         <div style={{
