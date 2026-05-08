@@ -13,13 +13,18 @@ function toRow(record) {
   };
 }
 
+function toLocalDateStr(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
 export async function saveReport({ type, filename, reportDate, data }) {
   const { data: row, error } = await supabase
     .from('reports')
     .insert({
       type,
       filename,
-      report_date: reportDate instanceof Date ? reportDate.toISOString().slice(0, 10) : reportDate,
+      report_date: toLocalDateStr(reportDate),
       data,
     })
     .select()

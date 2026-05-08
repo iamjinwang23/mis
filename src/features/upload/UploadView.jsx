@@ -59,12 +59,9 @@ export default function UploadView({ onUploaded }) {
       const dateSource = dateFromName ? 'filename' : 'filecontent';
 
       const existing = await listReports(type);
-      const sameDate = existing.find(r => {
-        const d = new Date(r.reportDate);
-        return d.getFullYear() === reportDate.getFullYear() &&
-               d.getMonth() === reportDate.getMonth() &&
-               d.getDate() === reportDate.getDate();
-      });
+      const pad = n => String(n).padStart(2, '0');
+      const reportDateStr = `${reportDate.getFullYear()}-${pad(reportDate.getMonth()+1)}-${pad(reportDate.getDate())}`;
+      const sameDate = existing.find(r => r.report_date === reportDateStr);
 
       if (sameDate) {
         setLoading(false);
