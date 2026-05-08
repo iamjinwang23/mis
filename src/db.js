@@ -1,90 +1,60 @@
-const DB_NAME = 'mis_dashboard';
-const DB_VERSION = 1;
-const STORE = 'reports';
+import { createClient } from '@supabase/supabase-js';
 
-let _dbPromise = null;
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
-function openDb() {
-  if (_dbPromise) return _dbPromise;
-  _dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('by_type', 'type', { unique: false });
-        store.createIndex('by_date', 'reportDate', { unique: false });
-      }
-    };
-    req.onsuccess = (e) => resolve(e.target.result);
-    req.onerror = () => { _dbPromise = null; reject(req.error); };
-  });
-  return _dbPromise;
+function toRow(record) {
+  return {
+    ...record,
+    reportDate: record.report_date,
+    uploadedAt: record.uploaded_at,
+  };
 }
 
 export async function saveReport({ type, filename, reportDate, data }) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const store = tx.objectStore(STORE);
-    const record = {
+  const { data: row, error } = await supabase
+    .from('reports')
+    .insert({
       type,
       filename,
-      reportDate: reportDate instanceof Date ? reportDate.toISOString() : reportDate,
-      uploadedAt: new Date().toISOString(),
+      report_date: reportDate instanceof Date ? reportDate.toISOString().slice(0, 10) : reportDate,
       data,
-    };
-    const req = store.add(record);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return row.id;
 }
 
 export async function listReports(type) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly');
-    const store = tx.objectStore(STORE);
-    const req = type ? store.index('by_type').getAll(type) : store.getAll();
-    req.onsuccess = () => {
-      const sorted = (req.result || []).sort((a, b) =>
-        new Date(b.reportDate) - new Date(a.reportDate)
-      );
-      resolve(sorted);
-    };
-    req.onerror = () => reject(req.error);
-  });
+  let query = supabase
+    .from('reports')
+    .select('id, type, filename, report_date, uploaded_at')
+    .order('report_date', { ascending: false });
+  if (type) query = query.eq('type', type);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).map(toRow);
 }
 
 export async function getReport(id) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly');
-    const store = tx.objectStore(STORE);
-    const req = store.get(id);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  const { data, error } = await supabase
+    .from('reports')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) throw error;
+  return toRow(data);
 }
 
 export async function deleteReport(id) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const store = tx.objectStore(STORE);
-    const req = store.delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  const { error } = await supabase.from('reports').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function clearAll() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const store = tx.objectStore(STORE);
-    const req = store.clear();
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  const { error } = await supabase.from('reports').delete().neq('id', 0);
+  if (error) throw error;
 }
