@@ -1,0 +1,238 @@
+import { useState } from 'react';
+import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, Info } from 'lucide-react';
+import { T, MONO_STACK, RADIUS } from '../../theme.js';
+import { parseGFPReport } from '../../utils/parser.js';
+import { parseAutoReport, detectFileType } from '../../utils/auto_parser.js';
+import { parseRetailReport } from '../../utils/retail_parser.js';
+import { parseDateFromFilename } from '../../utils/date_from_filename.js';
+import { saveReport, listReports, deleteReport } from '../../db.js';
+import { fmtDate } from '../../utils/formatters.js';
+import { REPORT_TYPES, typeLabel, typeColor } from '../../utils/report_types.js';
+
+export default function UploadView({ onUploaded }) {
+  const [dragOver, setDragOver] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    if (!file.name.match(/\.xlsx?$/i)) {
+      setError('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const type = detectFileType(buffer);
+
+      let parsed;
+      if (type === 'gfp') {
+        parsed = parseGFPReport(buffer);
+      } else if (type === 'retail') {
+        parsed = parseRetailReport(buffer);
+      } else if (type === 'auto') {
+        parsed = parseAutoReport(buffer);
+      } else {
+        throw new Error(
+          '파일 형식을 인식할 수 없습니다.\n' +
+          '· GFP 총괄 보고서: "순번" + "지점명" 헤더가 있어야 합니다.\n' +
+          '· 리테일 사업부: "일일실적현황" 시트가 있어야 합니다.\n' +
+          '· 자동차 보험: "2604" 같은 월별 시트가 있어야 합니다.'
+        );
+      }
+
+      // 날짜 결정: 파일명 우선 → 파일 내용 fallback → 현재 날짜
+      const dateFromName = parseDateFromFilename(file.name);
+      const dateFromFile = parsed.reportDate;
+      const reportDate = dateFromName || dateFromFile || new Date();
+
+      // 중복 날짜: 발견 시 사용자에게 교체 여부 확인 (취소 시 업로드 중단)
+      const existing = await listReports(type);
+      const sameDate = existing.find(r => {
+        const d = new Date(r.reportDate);
+        return d.getFullYear() === reportDate.getFullYear() &&
+               d.getMonth() === reportDate.getMonth() &&
+               d.getDate() === reportDate.getDate();
+      });
+
+      let replaced = false;
+      if (sameDate) {
+        const ok = window.confirm(
+          `${fmtDate(reportDate)} 날짜의 ${typeLabel(type)} 데이터가 이미 있어요.\n\n` +
+          `기존 파일: ${sameDate.filename}\n` +
+          `새 파일: ${file.name}\n\n` +
+          `[확인] 기존 데이터를 삭제하고 새 파일로 교체합니다.\n` +
+          `[취소] 업로드를 중단합니다.`
+        );
+        if (!ok) {
+          setLoading(false);
+          return;
+        }
+        await deleteReport(sameDate.id);
+        replaced = true;
+      }
+
+      const id = await saveReport({
+        type,
+        filename: file.name,
+        reportDate,
+        data: parsed,
+      });
+
+      setResult({
+        ok: true, type, reportDate, filename: file.name, id,
+        dateSource: dateFromName ? 'filename' : 'filecontent',
+        replaced,
+        replacedFilename: sameDate?.filename,
+      });
+      onUploaded(type, id);
+    } catch (err) {
+      setError(err.message || '파일 처리 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reset = () => { setResult(null); setError(null); };
+
+  return (
+    <div className="page-wrap" style={{ maxWidth: 640 }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>파일 업로드</h1>
+        <p style={{ fontSize: 18, color: T.textDim }}>
+          GFP 총괄 또는 리테일 사업부 Daily 파일을 업로드합니다.<br />
+          파일 형식을 자동으로 감지하고 브라우저에 저장합니다.
+        </p>
+      </div>
+
+      {/* Upload zone */}
+      <label
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]); reset(); }}
+        style={{
+          display: 'block', cursor: loading ? 'wait' : 'pointer',
+          padding: 48, borderRadius: RADIUS.lg,
+          background: dragOver ? `${T.accent}0a` : T.card,
+          border: `2px dashed ${dragOver ? T.accent : T.border}`,
+          textAlign: 'center', transition: 'all 0.2s',
+          marginBottom: 20,
+        }}
+      >
+        <input
+          type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
+          onChange={(e) => { reset(); handleFile(e.target.files?.[0]); }}
+          disabled={loading}
+        />
+        <div style={{
+          width: 56, height: 56, borderRadius: RADIUS.md, margin: '0 auto 16px',
+          background: loading ? 'rgba(255,255,255,0.06)' : dragOver ? T.accent : `${T.accent}18`,
+          color: dragOver ? T.bg : T.accent,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 0.2s',
+        }}>
+          {loading
+            ? <div style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid rgba(255,255,255,0.2)`, borderTopColor: T.accent, animation: 'spin 1s linear infinite' }} />
+            : <Upload size={24} strokeWidth={2} />
+          }
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 600, color: T.text, marginBottom: 6 }}>
+          {loading ? '파일 분석 중...' : '클릭하거나 드래그해서 업로드'}
+        </div>
+        <div style={{ color: T.textMute, fontSize: 15 }}>
+          GFP 총괄 · 리테일 사업부 · 자동차 보험 파일 지원
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </label>
+
+      {/* Success */}
+      {result?.ok && (
+        <div style={{
+          padding: 16, borderRadius: RADIUS.md,
+          background: `${T.green}0f`, border: `1px solid ${T.green}30`,
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+        }}>
+          <CheckCircle2 size={18} style={{ color: T.green, flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontWeight: 700, color: T.green, marginBottom: 6 }}>
+              {result.replaced ? '데이터 교체 완료' : '업로드 완료'}
+            </div>
+            {result.replaced && (
+              <div style={{
+                fontSize: 14, color: T.yellow, marginBottom: 6,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <Info size={13} style={{ flexShrink: 0 }} />
+                <span>기존 파일 <span style={{ fontFamily: MONO_STACK }}>{result.replacedFilename}</span> 을 삭제하고 교체했습니다.</span>
+              </div>
+            )}
+            <div style={{ fontSize: 18, color: T.textDim, marginBottom: 4 }}>
+              <span style={{
+                fontSize: 13, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+                background: `${typeColor(result.type)}18`,
+                color: typeColor(result.type),
+                marginRight: 6,
+              }}>
+                {typeLabel(result.type)}
+              </span>
+              <span style={{ fontFamily: MONO_STACK }}>{result.filename}</span>
+            </div>
+            <div style={{ fontSize: 15, color: T.textMute, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>조회 기준일:</span>
+              <span style={{ fontFamily: MONO_STACK, color: T.text, fontWeight: 600 }}>
+                {fmtDate(result.reportDate)}
+              </span>
+              <span style={{
+                fontSize: 13, padding: '1px 5px', borderRadius: 3,
+                background: result.dateSource === 'filename' ? `${T.accent}18` : 'rgba(255,255,255,0.06)',
+                color: result.dateSource === 'filename' ? T.accent : T.textMute,
+              }}>
+                {result.dateSource === 'filename' ? '파일명 파싱' : '파일 내용'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div style={{
+          padding: 16, borderRadius: RADIUS.md,
+          background: T.redSoft, border: `1px solid ${T.red}40`,
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+        }}>
+          <AlertCircle size={18} style={{ color: T.red, flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <div style={{ fontWeight: 600, color: T.red, marginBottom: 4 }}>파일 처리 실패</div>
+            <div style={{ fontSize: 18, color: T.textDim, whiteSpace: 'pre-line', lineHeight: 1.6 }}>{error}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Guide */}
+      <div style={{ marginTop: 28 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 12 }}>지원 파일 형식</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 12 }}>
+          {Object.entries(REPORT_TYPES).map(([key, t]) => (
+            <div key={key} style={{
+              padding: 14, borderRadius: RADIUS.sm,
+              background: T.card, border: `1px solid ${T.border}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <FileSpreadsheet size={14} style={{ color: t.color }} />
+                <span style={{ fontSize: 15, fontWeight: 700, color: t.color }}>{t.label}</span>
+              </div>
+              <div style={{ fontSize: 13, color: T.textMute, fontFamily: MONO_STACK, marginBottom: 4, wordBreak: 'break-all' }}>{t.fileExample}</div>
+              <div style={{ fontSize: 13, color: T.textDim }}>{t.detail}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
