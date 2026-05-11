@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { CheckCircle2, Circle } from 'lucide-react';
 import { T, FONT_STACK, MONO_STACK, RADIUS } from './theme.js';
 import { listReports } from './db.js';
 import { fmtDate } from './utils/formatters.js';
@@ -100,6 +101,58 @@ function DateRangePicker({ reports, idFrom, idTo, onChangeFrom, onChangeTo, colo
       <DateSelect reports={fromReports} selectedId={idFrom} onSelect={onChangeFrom} color={color} />
       <span style={{ fontSize: 13, color: T.textMute }}>~</span>
       <DateSelect reports={toReports} selectedId={idTo} onSelect={onChangeTo} color={color} />
+    </div>
+  );
+}
+
+function toLocalDateStr(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
+function isUploadedBy9AM(reports) {
+  const now = new Date();
+  const todayStr = toLocalDateStr(now);
+  const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
+  return reports.some(r => {
+    if (r.reportDate !== todayStr) return false;
+    return new Date(r.uploadedAt) <= cutoff;
+  });
+}
+
+function UploadStatusBar({ gfpOk, retailOk, autoOk }) {
+  const today = new Date();
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+  const dateStr = `${today.getMonth() + 1}월 ${today.getDate()}일 (${weekdays[today.getDay()]})`;
+
+  const items = [
+    { label: 'GFP 총괄',     ok: gfpOk,    color: T.accent  },
+    { label: '리테일 사업부', ok: retailOk, color: T.purple  },
+    { label: '자동차 보험',   ok: autoOk,   color: T.green   },
+  ];
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 12, color: T.textMute, fontFamily: MONO_STACK, fontWeight: 600 }}>
+        {dateStr}
+      </span>
+      <div style={{ width: 1, height: 14, background: T.border }} />
+      {items.map(item => (
+        <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {item.ok
+            ? <CheckCircle2 size={13} color={item.color} />
+            : <Circle      size={13} color={T.textMute}  />
+          }
+          <span style={{
+            fontSize: 12,
+            color: item.ok ? item.color : T.textMute,
+            fontFamily: FONT_STACK,
+            fontWeight: item.ok ? 600 : 400,
+          }}>
+            {item.label}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -321,16 +374,21 @@ export default function App() {
           <style>{`@keyframes fadeInUp { from { opacity:0; transform: translateX(-50%) translateY(8px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }`}</style>
         </div>
       )}
-      {/* Top bar */}
-      {(section === 'gfp' || section === 'auto' || section === 'retail') && currentReports.length > 0 && (
-        <div style={{
-          position: 'sticky', top: 0, zIndex: 50,
-          background: `${T.bg}ee`, backdropFilter: 'blur(12px)',
-          borderBottom: `1px solid ${T.border}`,
-          padding: '8px 24px',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-        }}>
-          {section === 'gfp' ? (
+      {/* Top bar - always visible */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: `${T.bg}ee`, backdropFilter: 'blur(12px)',
+        borderBottom: `1px solid ${T.border}`,
+        padding: '8px 24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <UploadStatusBar
+          gfpOk={isUploadedBy9AM(gfpReports)}
+          retailOk={isUploadedBy9AM(retailReports)}
+          autoOk={isUploadedBy9AM(autoReports)}
+        />
+        {(section === 'gfp' || section === 'auto' || section === 'retail') && currentReports.length > 0 && (
+          section === 'gfp' ? (
             <DateRangePicker
               reports={gfpReports}
               idFrom={selectedGfpIdFrom}
@@ -357,9 +415,9 @@ export default function App() {
               onChangeTo={setSelectedAutoId}
               color={headerColor}
             />
-          )}
-        </div>
-      )}
+          )
+        )}
+      </div>
 
       {renderContent()}
     </Layout>
