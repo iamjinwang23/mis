@@ -142,7 +142,7 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
         {/* Coverage pie */}
         <Card style={{ padding: 20 }}>
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>부서별 보장분석</h3>
-          <p style={{ fontSize: 13, color: T.textMute, marginBottom: 16 }}>전체 {fmtNum(totalCoverage)}건</p>
+          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>전체 {fmtNum(totalCoverage)}건</p>
           {coverageChart.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={180}>
@@ -196,7 +196,7 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
         {/* TM agent bar chart */}
         <Card style={{ padding: 20 }}>
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>TM 호전환 TOP 10</h3>
-          <p style={{ fontSize: 13, color: T.textMute, marginBottom: 16 }}>1차 호전환 성공건 기준</p>
+          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>1차 호전환 성공건 기준</p>
           {agentChart.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={agentChart} margin={{ top: 20, right: 8, left: 0, bottom: 40 }}>
@@ -220,7 +220,7 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
       {/* DB 운용 현황 */}
       <Card style={{ padding: 20 }}>
         <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>DB 운용 현황 요약</h3>
-        <p style={{ fontSize: 13, color: T.textMute, marginBottom: 16 }}>갱신 DB 분배 현황</p>
+        <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>갱신 DB 분배 현황</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           {sectionDefs.filter(d => s[d.key]?.assigned > 0).map(def => {
             const sec = s[def.key];

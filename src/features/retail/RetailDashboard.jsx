@@ -209,7 +209,7 @@ export default function RetailDashboard({ report }) {
           <p style={{ fontSize: 15, color: T.textMute }}>제품별 당일 · 당월누계 · 단위: 백만원</p>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15, fontFamily: MONO_STACK }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
                 <th style={{ padding: '12px 16px', textAlign: 'left', color: T.textDim, fontSize: 13, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
@@ -233,30 +233,30 @@ export default function RetailDashboard({ report }) {
                   onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <td style={{ padding: '12px 16px', fontWeight: 600, color: T.text, whiteSpace: 'nowrap', fontFamily: FONT_STACK }}>
+                  <td style={{ padding: '12px 16px', fontSize: 18, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', fontFamily: FONT_STACK }}>
                     {c.name}
                   </td>
                   {PRODUCTS.map(p => {
                     const cum = c.products[p.key].cumulative;
                     return (
-                      <td key={p.key} style={{ padding: '12px 10px', textAlign: 'right', color: cum > 0 ? T.text : T.textMute }}>
+                      <td key={p.key} style={{ padding: '12px 10px', fontSize: 18, fontFamily: MONO_STACK, textAlign: 'right', color: cum > 0 ? T.text : T.textMute }}>
                         {cum > 0 ? fmtNum(cum) : '—'}
                       </td>
                     );
                   })}
-                  <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: c.total > 0 ? RETAIL_COLOR : T.textMute }}>
+                  <td style={{ padding: '12px 16px', fontSize: 18, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 700, color: c.total > 0 ? RETAIL_COLOR : T.textMute }}>
                     {c.total > 0 ? fmtNum(c.total) : '—'}
                   </td>
                 </tr>
               ))}
               <tr style={{ borderTop: `2px solid ${RETAIL_COLOR}40`, background: `${RETAIL_COLOR}0a` }}>
-                <td style={{ padding: '12px 16px', fontWeight: 700, color: T.text, fontFamily: FONT_STACK }}>합계</td>
+                <td style={{ padding: '12px 16px', fontSize: 18, fontWeight: 700, color: T.text, fontFamily: FONT_STACK }}>합계</td>
                 {PRODUCTS.map(p => (
-                  <td key={p.key} style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700, color: totals[p.key].cumulative > 0 ? T.text : T.textMute }}>
+                  <td key={p.key} style={{ padding: '12px 10px', fontSize: 18, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 700, color: totals[p.key].cumulative > 0 ? T.text : T.textMute }}>
                     {totals[p.key].cumulative > 0 ? fmtNum(totals[p.key].cumulative) : '—'}
                   </td>
                 ))}
-                <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: RETAIL_COLOR }}>
+                <td style={{ padding: '12px 16px', fontSize: 18, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 800, color: RETAIL_COLOR }}>
                   {fmtNum(totalMonthCum)}
                 </td>
               </tr>

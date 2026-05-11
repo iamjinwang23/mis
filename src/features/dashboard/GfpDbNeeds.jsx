@@ -146,7 +146,7 @@ export default function GfpDbNeeds({ report }) {
                 <thead>
                   <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
                     {['지점명', '관리자', '가동인원', '보장분석 월최소', '호전환 월최소'].map(h => (
-                      <th key={h} style={{ padding: '10px 14px', textAlign: h === '지점명' || h === '관리자' ? 'left' : 'center', color: T.textDim, fontSize: 13, fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={h} style={{ padding: '12px 14px', textAlign: h === '지점명' || h === '관리자' ? 'left' : 'center', color: T.textDim, fontSize: 13, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -156,13 +156,13 @@ export default function GfpDbNeeds({ report }) {
                       onMouseEnter={e => e.currentTarget.style.background = T.cardHover}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={{ padding: '10px 14px', fontSize: 15, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{b.name}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 14, color: T.textDim }}>{b.manager || '—'}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: MONO_STACK, fontSize: 15, color: T.text }}>{b.cov.active || '—'}</td>
-                      <td style={{ padding: '10px 14px', minWidth: 140 }}>
+                      <td style={{ padding: '12px 14px', fontSize: 18, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{b.name}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 18, color: T.textDim }}>{b.manager || '—'}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center', fontFamily: MONO_STACK, fontSize: 18, color: T.text }}>{b.cov.active || '—'}</td>
+                      <td style={{ padding: '12px 14px', minWidth: 140 }}>
                         <NeedsBadge monthly={b.cov.monthly} actual={b.actual?.covContracts} />
                       </td>
-                      <td style={{ padding: '10px 14px', minWidth: 140 }}>
+                      <td style={{ padding: '12px 14px', minWidth: 140 }}>
                         <NeedsBadge monthly={b.hw.monthly} actual={b.actual?.hwContracts} />
                       </td>
                     </tr>
@@ -189,7 +189,7 @@ export default function GfpDbNeeds({ report }) {
                 <thead>
                   <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
                     {['지점명', '관리자', '가동인원', '보장분석 월최소'].map(h => (
-                      <th key={h} style={{ padding: '10px 14px', textAlign: h === '지점명' || h === '관리자' ? 'left' : 'center', color: T.textDim, fontSize: 13, fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={h} style={{ padding: '12px 14px', textAlign: h === '지점명' || h === '관리자' ? 'left' : 'center', color: T.textDim, fontSize: 13, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -199,10 +199,10 @@ export default function GfpDbNeeds({ report }) {
                       onMouseEnter={e => e.currentTarget.style.background = T.cardHover}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={{ padding: '10px 14px', fontSize: 15, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{b.name}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 14, color: T.textDim }}>{b.manager || '—'}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: MONO_STACK, fontSize: 15, color: T.text }}>{b.cov.active || '—'}</td>
-                      <td style={{ padding: '10px 14px', minWidth: 140 }}>
+                      <td style={{ padding: '12px 14px', fontSize: 18, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{b.name}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 18, color: T.textDim }}>{b.manager || '—'}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center', fontFamily: MONO_STACK, fontSize: 18, color: T.text }}>{b.cov.active || '—'}</td>
+                      <td style={{ padding: '12px 14px', minWidth: 140 }}>
                         <NeedsBadge monthly={b.cov.monthly} actual={b.actual?.covContracts} />
                       </td>
                     </tr>
