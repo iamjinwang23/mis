@@ -210,7 +210,8 @@ function SectionBlock({ title, color, icon: Icon, data, columns, summaryFields, 
 }
 
 export default function AutoDetail({ page, report }) {
-  const { reportDate, sections } = report.data;
+  const { sections } = report.data;
+  const reportDate = report.reportDate;
   const s = sections || {};
 
   const headerDate = fmtDate(reportDate);

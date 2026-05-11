@@ -63,7 +63,8 @@ function SectionCard({ data, color, icon: Icon, onClick }) {
 }
 
 export default function AutoDashboard({ report, prevReport, onNavigate }) {
-  const { reportDate, summary, sections } = report.data;
+  const { summary, sections } = report.data;
+  const reportDate = report.reportDate;
   const s = sections || {};
   const ps = prevReport?.data?.summary || null;
 
