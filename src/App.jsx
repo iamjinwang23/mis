@@ -110,20 +110,15 @@ function toLocalDateStr(d) {
   return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
 }
 
-function isUploadedBy9AM(reports) {
-  const now = new Date();
-  const todayStr = toLocalDateStr(now);
-  const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
-  return reports.some(r => {
-    if (r.reportDate !== todayStr) return false;
-    return new Date(r.uploadedAt) <= cutoff;
-  });
+function isUploadedToday(reports) {
+  const todayStr = toLocalDateStr(new Date());
+  return reports.some(r => r.reportDate === todayStr);
 }
 
 function UploadStatusBar({ gfpOk, retailOk, autoOk }) {
   const today = new Date();
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const dateStr = `${today.getMonth() + 1}월 ${today.getDate()}일 (${weekdays[today.getDay()]})`;
+  const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${weekdays[today.getDay()]})`;
 
   const items = [
     { label: 'GFP 총괄',     ok: gfpOk,    color: T.accent  },
@@ -383,9 +378,9 @@ export default function App() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <UploadStatusBar
-          gfpOk={isUploadedBy9AM(gfpReports)}
-          retailOk={isUploadedBy9AM(retailReports)}
-          autoOk={isUploadedBy9AM(autoReports)}
+          gfpOk={isUploadedToday(gfpReports)}
+          retailOk={isUploadedToday(retailReports)}
+          autoOk={isUploadedToday(autoReports)}
         />
         {(section === 'gfp' || section === 'auto' || section === 'retail') && currentReports.length > 0 && (
           section === 'gfp' ? (

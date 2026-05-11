@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -42,6 +42,11 @@ export default function Dashboard({ data, prevData }) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedBranch, setSelectedBranch] = useState(null);
+  const [animated, setAnimated] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setAnimated(true), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   const filteredBranches = useMemo(() => {
     let list = [...branches];
@@ -173,7 +178,7 @@ export default function Dashboard({ data, prevData }) {
                         return (
                           <div key={name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: BAR_W }}>
                             <span style={{ fontSize: 13, fontWeight: 700, fontFamily: MONO_STACK, color }}>{data.display}</span>
-                            <div style={{ width: '100%', height: h, background: color, borderRadius: '4px 4px 0 0', opacity: 0.9, transition: 'height 0.5s ease' }} />
+                            <div style={{ width: '100%', height: animated ? h : 0, background: color, borderRadius: '4px 4px 0 0', opacity: 0.9, transition: 'height 0.6s ease' }} />
                           </div>
                         );
                       })}
@@ -208,7 +213,7 @@ export default function Dashboard({ data, prevData }) {
                       <span style={{ fontFamily: MONO_STACK, fontWeight: 700, color: bucket.color }}>{bucket.count}곳</span>
                     </div>
                     <div style={{ width: '100%', height: 22, borderRadius: 4, background: T.bg2, overflow: 'hidden' }}>
-                      <div style={{ width: `${w}%`, height: '100%', background: bucket.color, opacity: 0.85, transition: 'width 0.6s ease' }} />
+                      <div style={{ width: animated ? `${w}%` : '0%', height: '100%', background: bucket.color, opacity: 0.85, transition: 'width 0.6s ease' }} />
                     </div>
                   </div>
                 );
@@ -288,7 +293,7 @@ export default function Dashboard({ data, prevData }) {
                 cursor={{ fill: T.accentSoft }}
                 formatter={(v, n) => n === '월납P' ? fmtMan(v) : `${v}%`}
               />
-              <Bar dataKey="월납P" radius={[6, 6, 0, 0]}>
+              <Bar dataKey="월납P" radius={[6, 6, 0, 0]} isAnimationActive animationDuration={600} animationEasing="ease-out">
                 {top10.map((d, i) => (
                   <Cell key={i} fill={d.달성율 >= 100 ? T.green : d.달성율 >= 50 ? T.accent : T.yellow} />
                 ))}

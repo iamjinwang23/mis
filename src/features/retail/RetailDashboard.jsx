@@ -11,7 +11,7 @@ import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
 import ProgressBar from '../../components/ProgressBar.jsx';
 
-const RETAIL_COLOR = '#7c6fcd';
+const RETAIL_COLOR = T.purple;
 
 const PRODUCTS = [
   { key: 'industrialNew',  label: '신산업재',   color: T.accent  },

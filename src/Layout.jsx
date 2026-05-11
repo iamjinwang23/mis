@@ -24,7 +24,7 @@ const NAV_SECTIONS = [
   {
     key: 'retail',
     label: '리테일 사업부',
-    color: '#7c6fcd',
+    color: T.purple,
     pages: [
       { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard },
       { key: 'execution', label: '실행내역', icon: List },

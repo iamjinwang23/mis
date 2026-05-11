@@ -30,7 +30,7 @@ export const T = {
   yellow: '#f5a623',
   red: '#e05252',
   redSoft: 'rgba(224,82,82,0.1)',
-  purple: '#7c6fcd',
+  purple: '#9b8fe8',
 };
 
 // Border radius — Notion scale
