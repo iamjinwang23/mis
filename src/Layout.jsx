@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { T, FONT_STACK, MONO_STACK } from './theme.js';
 import {
-  LayoutDashboard, Building2, Database, Users, Calculator,
+  LayoutDashboard, Building2, Database, Users,
   Phone, FileText, Truck, Lock,
   Upload, History, GitCompare,
   ChevronRight, Menu, X, List,
-  TrendingUp, Car, LogOut,
+  LogOut,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -14,11 +14,10 @@ const NAV_SECTIONS = [
     label: 'GFP 총괄',
     color: '#3e8fd4',
     pages: [
-      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard },
-      { key: 'branches', label: '지점별 실적', icon: Building2 },
-      { key: 'db', label: 'DB 운영현황', icon: Database },
-      { key: 'personnel', label: '인원 현황', icon: Users },
-      { key: 'dbneeds', label: 'DB 필요수량', icon: Calculator },
+      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard, category: '실적' },
+      { key: 'branches',  label: '지점별 실적',   icon: Building2,       category: '실적' },
+      { key: 'personnel', label: '인원 현황',      icon: Users,           category: '인원' },
+      { key: 'db',        label: 'DB 현황',        icon: Database,        category: 'DB'   },
     ],
   },
   {
@@ -26,11 +25,11 @@ const NAV_SECTIONS = [
     label: '자동차 보험',
     color: T.green,
     pages: [
-      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard },
-      { key: 'tm', label: 'TM 호전환', icon: Phone },
-      { key: 'contract', label: '계약실', icon: FileText },
-      { key: 'dealer', label: '딜러', icon: Truck },
-      { key: 'permission', label: '퍼미션실', icon: Lock },
+      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard, category: '실적' },
+      { key: 'tm',         label: 'TM 호전환',    icon: Phone,           category: '부서 상세' },
+      { key: 'contract',   label: '계약실',        icon: FileText,        category: '부서 상세' },
+      { key: 'dealer',     label: '딜러',          icon: Truck,           category: '부서 상세' },
+      { key: 'permission', label: '퍼미션실',      icon: Lock,            category: '부서 상세' },
     ],
   },
   {
@@ -170,19 +169,13 @@ export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, u
                     onClick={() => onNav({ section: sec.key, page: pg.key })}
                     style={{
                       width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
+                      display: 'flex', alignItems: 'center', gap: 8,
                       padding: '7px 16px 7px 20px',
                       border: 'none',
-                      background: isActive
-                        ? `${sec.color}18`
-                        : 'transparent',
+                      background: isActive ? `${sec.color}18` : 'transparent',
                       color: isActive ? sec.color : D.textDim,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: 15,
-                      fontFamily: FONT_STACK,
+                      cursor: 'pointer', textAlign: 'left',
+                      fontSize: 15, fontFamily: FONT_STACK,
                       fontWeight: isActive ? 600 : 400,
                       transition: 'all 0.15s',
                       borderLeft: isActive ? `2px solid ${sec.color}` : '2px solid transparent',

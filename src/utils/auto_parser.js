@@ -23,7 +23,7 @@ const SECTION_LABELS = {
   permission: '퍼미션실',
 };
 
-// Column indices (0-based, from header row analysis of 260424 file)
+// Column indices (0-based, from header row of YYMM sheets)
 const C = {
   major: 0,
   minor: 1,
@@ -61,27 +61,11 @@ function parseSectionRow(row) {
   };
 }
 
-export function parseAutoReport(buffer) {
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-
-  const monthSheets = wb.SheetNames
-    .map(n => n.trim())
-    .filter(n => /^\d{4}$/.test(n))
-    .sort();
-
-  if (!monthSheets.length) {
-    throw new Error('월별 시트(예: 2604)를 찾을 수 없습니다. 자동차 daily 파일인지 확인해주세요.');
-  }
-
-  const sheetName = monthSheets[monthSheets.length - 1];
-  const yy = parseInt(sheetName.slice(0, 2));
-  const mm = parseInt(sheetName.slice(2, 4));
-  const reportDate = new Date(2000 + yy, mm - 1, 1);
-
+// 단일 YYMM 시트에서 summary + sections + agents를 파싱한다.
+function parseMonthSheet(wb, sheetName, includeAgents = false) {
   const ws = wb.Sheets[sheetName];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-  // Row index 2 = overall 합계
   const sumRow = aoa[2] || [];
   const summary = parseSectionRow(sumRow);
 
@@ -89,14 +73,14 @@ export function parseAutoReport(buffer) {
   let currentKey = null;
   let currentData = null;
   let currentAgents = [];
-  let lastSubManager = null; // col2 carry-forward용
+  let lastSubManager = null;
 
   const flush = () => {
     if (currentKey && currentData) {
       sections[currentKey] = {
         ...currentData,
         label: SECTION_LABELS[currentKey],
-        agents: currentAgents,
+        agents: includeAgents ? currentAgents : [],
       };
     }
   };
@@ -112,19 +96,17 @@ export function parseAutoReport(buffer) {
       currentData = parseSectionRow(row);
       currentData.manager = row[C.manager] || null;
       currentAgents = [];
-      lastSubManager = null; // 섹션 전환 시 초기화
+      lastSubManager = null;
       continue;
     }
 
-    if (!currentKey) continue;
+    if (!currentKey || !includeAgents) continue;
 
-    // Agent rows: col3 has agent name, col5 has status
     const agentName = row[C.sales];
     const status = row[C.status];
     const VALID_STATUSES = ['재직', '주말', '퇴사', '퇴사예정', '1차디비', '신풍'];
 
     if (isName(agentName) && status && VALID_STATUSES.includes(String(status).trim())) {
-      // col2에 값이 있으면 새 관리자로 갱신, 없으면 직전 관리자 유지 (carry-forward)
       const col2 = row[C.manager];
       if (isName(col2)) lastSubManager = String(col2).trim();
 
@@ -141,8 +123,37 @@ export function parseAutoReport(buffer) {
       });
     }
   }
-
   flush();
+
+  return { summary, sections };
+}
+
+export function parseAutoReport(buffer) {
+  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+
+  const monthSheets = wb.SheetNames
+    .map(n => n.trim())
+    .filter(n => /^\d{4}$/.test(n))
+    .sort();
+
+  if (!monthSheets.length) {
+    throw new Error('월별 시트(예: 2604)를 찾을 수 없습니다. 자동차 daily 파일인지 확인해주세요.');
+  }
+
+  // 전체 월 데이터 → 추세용 (agents 제외, 속도 우선)
+  const monthlyTrend = monthSheets.map(sheetName => {
+    const mm = parseInt(sheetName.slice(2, 4));
+    const { summary, sections } = parseMonthSheet(wb, sheetName, false);
+    return { month: sheetName, label: `${mm}월`, summary, sections };
+  });
+
+  // 최신 월 → 상세 데이터 (agents 포함)
+  const sheetName = monthSheets[monthSheets.length - 1];
+  const yy = parseInt(sheetName.slice(0, 2));
+  const mm = parseInt(sheetName.slice(2, 4));
+  const reportDate = new Date(2000 + yy, mm - 1, 1);
+
+  const { summary, sections } = parseMonthSheet(wb, sheetName, true);
 
   const sectionOrder = ['tmHoJeon', 'contract', 'dealerNew', 'dealerRenewal', 'permission'];
   const validSections = sectionOrder.filter(k => sections[k]);
@@ -151,7 +162,7 @@ export function parseAutoReport(buffer) {
     throw new Error('자동차 파일에서 섹션 데이터를 찾을 수 없습니다.');
   }
 
-  return { reportDate, sheetName, summary, sections };
+  return { reportDate, sheetName, summary, sections, monthlyTrend };
 }
 
 export function detectFileType(buffer) {

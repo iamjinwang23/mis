@@ -106,16 +106,16 @@ export default function GfpPersonnel({ report }) {
                           {b.isDirect ? '직영' : '지사'}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 14px', fontSize: 18, fontWeight: 500, color: T.text }}>{b.name}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 18, color: T.textDim }}>{b.manager || '-'}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18 }}>{fmtNum(b.headcount)}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18, color: b.hire > 0 ? T.green : T.textMute }}>
+                      <td style={{ padding: '10px 14px', fontSize: 15, fontWeight: 500, color: T.text }}>{b.name}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 15, color: T.textDim }}>{b.manager || '-'}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtNum(b.headcount)}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: b.hire > 0 ? T.green : T.textMute }}>
                         {b.hire > 0 ? fmtNum(b.hire) : '-'}
                       </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18, color: b.fire > 0 ? T.red : T.textMute }}>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: b.fire > 0 ? T.red : T.textMute }}>
                         {b.fire > 0 ? fmtNum(b.fire) : '-'}
                       </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18, color: net > 0 ? T.green : net < 0 ? T.red : T.textMute }}>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: net > 0 ? T.green : net < 0 ? T.red : T.textMute }}>
                         {net !== 0 ? `${net > 0 ? '+' : ''}${fmtNum(net)}` : '-'}
                       </td>
                     </tr>

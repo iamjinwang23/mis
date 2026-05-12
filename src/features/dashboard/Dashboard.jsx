@@ -1,9 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-} from 'recharts';
-import {
-  Search, X, ArrowUpRight, ArrowDownRight,
+  Search, X,
   Phone, Shield, Award, Activity, BarChart3, TrendingUp, Users, Target, Network,
 } from 'lucide-react';
 import { T, FONT_STACK, MONO_STACK, RADIUS, SHADOW } from '../../theme.js';
@@ -279,34 +276,58 @@ export default function Dashboard({ data, prevData }) {
           )}
         </Card>
 
-        {/* TOP 10 차트 */}
-        <Card style={{ padding: 24, marginBottom: 24 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>월납P TOP 10 지점/지사</h3>
-          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>당월 누적 기준</p>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={top10} margin={{ top: 16, right: 24, left: 0, bottom: 50 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-              <XAxis dataKey="name" stroke={T.textDim} fontSize={11} angle={-30} textAnchor="end" interval={0} />
-              <YAxis stroke={T.textDim} fontSize={11} tickFormatter={(v) => fmtMan(v)} />
-              <Tooltip
-                contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 15 }}
-                cursor={{ fill: T.accentSoft }}
-                formatter={(v, n) => n === '월납P' ? fmtMan(v) : `${v}%`}
-              />
-              <Bar dataKey="월납P" radius={[6, 6, 0, 0]} isAnimationActive animationDuration={600} animationEasing="ease-out">
-                {top10.map((d, i) => (
-                  <Cell key={i} fill={d.달성율 >= 100 ? T.green : d.달성율 >= 50 ? T.accent : T.yellow} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', gap: 16, fontSize: 13, color: T.textDim, marginTop: 8, justifyContent: 'center' }}>
-            {[{ color: T.green, label: '달성율 100%↑' }, { color: T.accent, label: '50~100%' }, { color: T.yellow, label: '50% 미만' }].map(({ color, label }) => (
-              <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
-                {label}
-              </span>
-            ))}
+        {/* TOP 10 테이블 */}
+        <Card style={{ overflow: 'hidden', marginBottom: 24 }}>
+          <div style={{ padding: '20px 24px 14px', borderBottom: `1px solid ${T.border}` }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 2 }}>월납P TOP 10 지점/지사</h3>
+            <p style={{ fontSize: 15, color: T.textMute }}>당월 누적 기준</p>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
+                  {['순위', '지점/지사', '당월P', '달성율'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '10px 16px', textAlign: i >= 2 ? 'right' : 'left',
+                      color: T.textDim, fontSize: 13, fontWeight: 600,
+                      letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {top10.map((d, i) => {
+                  const achieveColor = d.달성율 >= 100 ? T.green : d.달성율 >= 50 ? T.accent : T.yellow;
+                  return (
+                    <tr key={i} style={{ borderBottom: `1px solid ${T.border}` }}
+                      onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <td style={{ padding: '11px 16px', width: 52 }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 700, fontFamily: MONO_STACK,
+                          color: i < 3 ? T.accent : T.textMute,
+                        }}>{i + 1}</span>
+                      </td>
+                      <td style={{ padding: '11px 16px', fontSize: 15, fontWeight: 600, color: T.text }}>{d.name}</td>
+                      <td style={{ padding: '11px 16px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>
+                        {fmtMan(d.월납P)}
+                      </td>
+                      <td style={{ padding: '11px 16px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                          <div style={{ width: 64 }}>
+                            <ProgressBar value={d.달성율 / 100} color={achieveColor} height={4} />
+                          </div>
+                          <span style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO_STACK, color: achieveColor, minWidth: 48, textAlign: 'right' }}>
+                            {d.달성율}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </Card>
 
@@ -384,23 +405,23 @@ export default function Dashboard({ data, prevData }) {
                           {b.isDirect ? '직영' : '지사'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 14px', fontSize: 18, fontWeight: isSelected ? 700 : 500, color: isSelected ? T.accent : T.text }}>{b.name}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 18, color: T.textDim }}>{b.manager || '-'}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18 }}>{fmtNum(b.count)}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18 }}>{fmtMan(b.monthly)}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18, color: T.textDim }}>{fmtMan(b.target)}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? T.accent : T.text }}>{b.name}</td>
+                      <td style={{ padding: '12px 14px', fontSize: 15, color: T.textDim }}>{b.manager || '-'}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtNum(b.count)}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtMan(b.monthly)}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: T.textDim }}>{fmtMan(b.target)}</td>
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                           <div style={{ width: 60 }}>
                             <ProgressBar value={b.achieve} color={b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.accent : b.achieve > 0 ? T.yellow : T.textMute} height={4} />
                           </div>
-                          <span style={{ fontFamily: MONO_STACK, fontSize: 18, fontWeight: 600, minWidth: 50, textAlign: 'right', color: b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.text : b.achieve > 0 ? T.yellow : T.textMute }}>
+                          <span style={{ fontFamily: MONO_STACK, fontSize: 15, fontWeight: 600, minWidth: 50, textAlign: 'right', color: b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.text : b.achieve > 0 ? T.yellow : T.textMute }}>
                             {fmtPct(b.achieve)}
                           </span>
                         </div>
                       </td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18 }}>{fmtNum(b.headcount)}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18, color: b.hire > 0 ? T.green : T.textMute }}>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtNum(b.headcount)}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: b.hire > 0 ? T.green : T.textMute }}>
                         {b.hire > 0 ? `+${fmtNum(b.hire)}` : '-'}
                       </td>
                     </tr>

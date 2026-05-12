@@ -10,9 +10,8 @@ import MyPage from './features/auth/MyPage.jsx';
 // GFP pages
 import Dashboard from './features/dashboard/Dashboard.jsx';
 import GfpBranches from './features/dashboard/GfpBranches.jsx';
-import GfpDbPage from './features/dashboard/GfpDbPage.jsx';
+import GfpDb from './features/dashboard/GfpDb.jsx';
 import GfpPersonnel from './features/dashboard/GfpPersonnel.jsx';
-import GfpDbNeeds from './features/dashboard/GfpDbNeeds.jsx';
 
 // Retail pages
 import RetailDashboard from './features/retail/RetailDashboard.jsx';
@@ -343,9 +342,8 @@ export default function App() {
       }
       if (page === 'dashboard') return <Dashboard data={currentGfp.data} prevData={prevGfp?.data || null} />;
       if (page === 'branches') return <GfpBranches report={currentGfp} />;
-      if (page === 'db') return <GfpDbPage report={currentGfp} />;
       if (page === 'personnel') return <GfpPersonnel report={currentGfp} />;
-      if (page === 'dbneeds') return <GfpDbNeeds report={currentGfp} />;
+      if (page === 'db') return <GfpDb report={currentGfp} />;
     }
 
     // Retail pages

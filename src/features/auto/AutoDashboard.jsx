@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
   Phone, FileText, Truck, Lock, Users, Database,
   TrendingUp, Activity, Award, Target,
 } from 'lucide-react';
-import { T, FONT_STACK, MONO_STACK, RADIUS, SHADOW, PALETTE } from '../../theme.js';
+import { T, FONT_STACK, MONO_STACK, RADIUS, SHADOW } from '../../theme.js';
 import { fmtNum, fmtDate } from '../../utils/formatters.js';
 import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
@@ -63,7 +63,7 @@ function SectionCard({ data, color, icon: Icon, onClick }) {
 }
 
 export default function AutoDashboard({ report, prevReport, onNavigate }) {
-  const { summary, sections } = report.data;
+  const { summary, sections, monthlyTrend } = report.data;
   const reportDate = report.reportDate;
   const s = sections || {};
   const ps = prevReport?.data?.summary || null;
@@ -95,6 +95,20 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
   const totalSuccess = Object.values(s).reduce((sum, sec) => sum + (sec?.success1st || 0), 0);
   const totalAssigned = Object.values(s).reduce((sum, sec) => sum + (sec?.assigned || 0), 0);
 
+  const trendData = useMemo(() => {
+    if (!monthlyTrend?.length) return [];
+    return monthlyTrend.map(m => {
+      const secs = Object.values(m.sections || {});
+      return {
+        name: m.label,
+        보장분석: secs.reduce((a, sec) => a + (sec?.coverage || 0), 0),
+        '1차호전환': secs.reduce((a, sec) => a + (sec?.success1st || 0), 0),
+        신규DB: m.summary?.newDb || 0,
+        갱신배분: m.summary?.assigned || 0,
+      };
+    });
+  }, [monthlyTrend]);
+
   return (
     <div className="page-wrap">
       {/* Page header */}
@@ -121,6 +135,71 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
         <KPICard label="TM 성공률" value={`${(summary.successRate * 100).toFixed(1)}%`} sub={`TM 갱신성공 ${fmtNum(summary.tmRenewalSuccess)}`} color={summary.successRate >= 0.5 ? T.green : T.yellow} icon={Target} delta={ps ? (summary.successRate - (ps.successRate||0)) * 100 : undefined} />
       </div>
 
+      {/* 월별 추세 */}
+      {trendData.length >= 2 && (
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>월별 추세</h2>
+          <p style={{ fontSize: 13, color: T.textMute, marginBottom: 16 }}>
+            {trendData.map(d => d.name).join(' → ')} · 전사 합산
+          </p>
+          <div className="grid-2col" style={{ gap: 16 }}>
+            {/* 보장분석 + 1차호전환 */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>보장분석 · 1차 호전환</div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="name" stroke={T.textDim} fontSize={12} />
+                  <YAxis stroke={T.textDim} fontSize={11} width={36} />
+                  <Tooltip
+                    contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 13 }}
+                    formatter={v => fmtNum(v)}
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                  />
+                  <Bar dataKey="보장분석" fill={T.blue} radius={[3, 3, 0, 0]} maxBarSize={48} />
+                  <Bar dataKey="1차호전환" fill={T.accent} radius={[3, 3, 0, 0]} maxBarSize={48} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 10 }}>
+                {[{ label: '보장분석', color: T.blue }, { label: '1차호전환', color: T.accent }].map(l => (
+                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: T.textDim }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* 신규 DB + 갱신 배분 */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>신규 DB · 갱신 배분</div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="name" stroke={T.textDim} fontSize={12} />
+                  <YAxis stroke={T.textDim} fontSize={11} width={40} />
+                  <Tooltip
+                    contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 13 }}
+                    formatter={v => fmtNum(v)}
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                  />
+                  <Bar dataKey="신규DB" fill={T.green} radius={[3, 3, 0, 0]} maxBarSize={48} />
+                  <Bar dataKey="갱신배분" fill={T.yellow} radius={[3, 3, 0, 0]} maxBarSize={48} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 10 }}>
+                {[{ label: '신규DB', color: T.green }, { label: '갱신배분', color: T.yellow }].map(l => (
+                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: T.textDim }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
       {/* Section Cards Grid */}
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>부서별 현황</h2>
@@ -140,78 +219,101 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
 
       {/* Charts Row */}
       <div className="grid-2col" style={{ gap: 16, marginBottom: 24 }}>
-        {/* Coverage pie */}
-        <Card style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>부서별 보장분석</h3>
-          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>전체 {fmtNum(totalCoverage)}건</p>
+        {/* Coverage table */}
+        <Card style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px 12px', borderBottom: `1px solid ${T.border}` }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 2, color: T.text }}>부서별 보장분석</h3>
+            <p style={{ fontSize: 15, color: T.textMute }}>전체 {fmtNum(totalCoverage)}건</p>
+          </div>
           {coverageChart.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={coverageChart}
-                    cx="50%"
-                    cy="95%"
-                    startAngle={180}
-                    endAngle={0}
-                    innerRadius={100}
-                    outerRadius={150}
-                    paddingAngle={2}
-                    cornerRadius={4}
-                    dataKey="value"
-                    nameKey="name"
-                    isAnimationActive
-                    animationDuration={500}
-                    animationEasing="ease-out"
-                  >
-                    {coverageChart.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} stroke="none" />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 15 }}
-                    formatter={v => fmtNum(v)}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Legend list */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 16px', marginTop: 12, justifyContent: 'center' }}>
-                {coverageChart.map(entry => {
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
+                  {['부서', '건수', '비율'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '9px 16px', textAlign: i >= 1 ? 'right' : 'left',
+                      color: T.textDim, fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...coverageChart].sort((a, b) => b.value - a.value).map((entry, i) => {
                   const pct = totalCoverage > 0 ? (entry.value / totalCoverage * 100) : 0;
                   return (
-                    <div key={entry.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 2, background: entry.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: T.text, fontWeight: 600 }}>{entry.name}</span>
-                      <span style={{ fontSize: 13, color: entry.color, fontWeight: 700, fontFamily: MONO_STACK }}>{pct.toFixed(0)}%</span>
-                      <span style={{ fontSize: 13, color: T.textMute, fontFamily: MONO_STACK }}>· {fmtNum(entry.value)}건</span>
-                    </div>
+                    <tr key={entry.name} style={{ borderBottom: `1px solid ${T.border}` }}
+                      onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <td style={{ padding: '10px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 2, background: entry.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{entry.name}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, fontWeight: 700, color: entry.color }}>
+                        {fmtNum(entry.value)}
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                          <div style={{ width: 60, height: 4, borderRadius: 2, background: T.bg2, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: entry.color, borderRadius: 2 }} />
+                          </div>
+                          <span style={{ fontSize: 15, fontFamily: MONO_STACK, fontWeight: 700, color: entry.color, minWidth: 40, textAlign: 'right' }}>
+                            {pct.toFixed(0)}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
-              </div>
-            </>
+              </tbody>
+            </table>
           ) : (
             <div style={{ padding: '40px 0', textAlign: 'center', color: T.textMute, fontSize: 18 }}>데이터 없음</div>
           )}
         </Card>
 
-        {/* TM agent bar chart */}
-        <Card style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>TM 호전환 TOP 10</h3>
-          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>1차 호전환 성공건 기준</p>
+        {/* TM agent ranked table */}
+        <Card style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px 12px', borderBottom: `1px solid ${T.border}` }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 2, color: T.text }}>TM 호전환 TOP 10</h3>
+            <p style={{ fontSize: 15, color: T.textMute }}>1차 호전환 성공건 기준</p>
+          </div>
           {agentChart.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={agentChart} margin={{ top: 20, right: 8, left: 0, bottom: 40 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-                <XAxis dataKey="name" stroke={T.textDim} fontSize={10} angle={-35} textAnchor="end" interval={0} />
-                <YAxis stroke={T.textDim} fontSize={10} domain={[0, (dataMax) => Math.ceil(dataMax * 1.15)]} />
-                <Tooltip
-                  contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 15 }}
-                  cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                />
-                <Bar dataKey="호전환" fill={T.accent} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="보장분석" fill={T.blue} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
+                  {['순위', '이름', '호전환', '보장분석'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '9px 16px', textAlign: i >= 2 ? 'right' : 'left',
+                      color: T.textDim, fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {agentChart.map((a, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${T.border}` }}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <td style={{ padding: '10px 16px', width: 44 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: MONO_STACK, color: i < 3 ? T.accent : T.textMute }}>
+                        {i + 1}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 16px', fontSize: 15, fontWeight: 600, color: T.text }}>{a.name}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, fontWeight: 700, color: T.accent }}>
+                      {fmtNum(a.호전환)}
+                    </td>
+                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: T.blue }}>
+                      {fmtNum(a.보장분석)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
             <div style={{ padding: '40px 0', textAlign: 'center', color: T.textMute, fontSize: 18 }}>TM 데이터 없음</div>
           )}

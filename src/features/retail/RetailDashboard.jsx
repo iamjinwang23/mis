@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import {
-  TrendingUp, Target, Award, BarChart3, Calendar, Activity,
+  TrendingUp, Target, Award, BarChart3, Calendar,
 } from 'lucide-react';
 import { T, MONO_STACK, RADIUS, FONT_STACK } from '../../theme.js';
 import { fmtNum, fmtPct, fmtDate } from '../../utils/formatters.js';
@@ -34,15 +34,22 @@ export default function RetailDashboard({ report }) {
     [totals]
   );
 
-  // 금융사별 합계 TOP 차트 데이터
-  const companyChart = useMemo(() =>
-    [...companies]
-      .sort((a, b) => b.total - a.total)
-      .map(c => ({ name: c.name, 누계: c.total })),
-    [companies]
-  );
-
   const totalMonthCum = companies.reduce((s, c) => s + c.total, 0);
+
+  // 월별 추세 차트 (이전 3개월 + 당월)
+  const trendChart = useMemo(() => {
+    const labels = summary.prevMonths?.length === 3
+      ? summary.prevMonths
+      : ['전전전월', '전전월', '전월'];
+    const dateObj = reportDate instanceof Date ? reportDate : new Date(reportDate);
+    const curLabel = isNaN(dateObj) ? '당월' : `${dateObj.getMonth() + 1}월`;
+    return [
+      { name: labels[0], 실적: summary.prev1 || 0, isCurrent: false },
+      { name: labels[1], 실적: summary.prev2 || 0, isCurrent: false },
+      { name: labels[2], 실적: summary.prev3 || 0, isCurrent: false },
+      { name: curLabel,  실적: summary.monthCum || 0, isCurrent: true },
+    ];
+  }, [summary, reportDate]);
 
   return (
     <div className="page-wrap">
@@ -122,37 +129,42 @@ export default function RetailDashboard({ report }) {
           </ResponsiveContainer>
         </Card>
 
-        {/* 최근 3개월 취급실적 */}
+        {/* 월별 추세 (이전 3개월 + 당월) */}
         <Card style={{ padding: 24 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>최근 3개월 취급실적</h3>
-          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 20 }}>단위: 백만원</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {[
-              { label: '1월', val: summary.prev1, color: T.textMute },
-              { label: '2월', val: summary.prev2, color: T.textDim },
-              { label: '3월', val: summary.prev3, color: T.text   },
-            ].map(m => {
-              const maxVal = Math.max(summary.prev1, summary.prev2, summary.prev3, 1);
-              const pct = m.val / maxVal;
-              return (
-                <div key={m.label}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: 15, color: T.textDim, fontFamily: MONO_STACK }}>{m.label}</span>
-                    <span style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO_STACK, color: m.color }}>
-                      {fmtNum(m.val)}백만
-                    </span>
-                  </div>
-                  <div style={{ width: '100%', height: 22, borderRadius: 4, background: T.bg2, overflow: 'hidden' }}>
-                    <div style={{
-                      width: `${pct * 100}%`, height: '100%',
-                      background: RETAIL_COLOR, opacity: 0.6 + 0.2 * pct,
-                      borderRadius: 4, transition: 'width 0.5s ease',
-                    }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>월별 취급실적 추세</h3>
+          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>
+            단위: 백만원
+            {summary.monthlyTarget > 0 && (
+              <span style={{ marginLeft: 8, color: T.yellow }}>
+                — 목표 {fmtNum(summary.monthlyTarget)}백만
+              </span>
+            )}
+          </p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={trendChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+              <XAxis dataKey="name" stroke={T.textDim} fontSize={12} />
+              <YAxis stroke={T.textDim} fontSize={11} tickFormatter={v => fmtNum(v)} width={42} />
+              <Tooltip
+                contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 13 }}
+                formatter={v => [`${fmtNum(v)}백만`, '실적']}
+                cursor={{ fill: `${RETAIL_COLOR}10` }}
+              />
+              {summary.monthlyTarget > 0 && (
+                <ReferenceLine
+                  y={summary.monthlyTarget}
+                  stroke={T.yellow}
+                  strokeDasharray="4 3"
+                  label={{ value: '목표', fill: T.yellow, fontSize: 11, position: 'insideTopRight' }}
+                />
+              )}
+              <Bar dataKey="실적" radius={[4, 4, 0, 0]} maxBarSize={52}>
+                {trendChart.map((entry, i) => (
+                  <Cell key={i} fill={entry.isCurrent ? RETAIL_COLOR : `${RETAIL_COLOR}55`} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </Card>
 
         {/* 제품별 현황 */}
@@ -178,29 +190,6 @@ export default function RetailDashboard({ report }) {
           </div>
         </Card>
       </div>
-
-      {/* 금융사별 누계 차트 */}
-      <Card style={{ padding: 24, marginBottom: 24 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>금융사별 당월 누계</h3>
-        <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>전 제품 합산 기준 · 전체 {companyChart.length}개사</p>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={companyChart} margin={{ top: 4, right: 24, left: 0, bottom: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-            <XAxis dataKey="name" stroke={T.textDim} fontSize={11} angle={-25} textAnchor="end" interval={0} />
-            <YAxis stroke={T.textDim} fontSize={11} tickFormatter={v => `${v}`} />
-            <Tooltip
-              contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 15 }}
-              formatter={v => [v > 0 ? `${fmtNum(v)}백만` : '—', '당월누계']}
-              cursor={{ fill: `${RETAIL_COLOR}10` }}
-            />
-            <Bar dataKey="누계" radius={[6, 6, 0, 0]}>
-              {companyChart.map((entry, i) => (
-                <Cell key={i} fill={entry.누계 > 0 ? (i === 0 ? RETAIL_COLOR : `${RETAIL_COLOR}80`) : T.border} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
 
       {/* 금융사별 상세 테이블 */}
       <Card style={{ overflow: 'hidden' }}>
@@ -233,30 +222,30 @@ export default function RetailDashboard({ report }) {
                   onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <td style={{ padding: '12px 16px', fontSize: 18, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', fontFamily: FONT_STACK }}>
+                  <td style={{ padding: '12px 16px', fontSize: 15, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', fontFamily: FONT_STACK }}>
                     {c.name}
                   </td>
                   {PRODUCTS.map(p => {
                     const cum = c.products[p.key].cumulative;
                     return (
-                      <td key={p.key} style={{ padding: '12px 10px', fontSize: 18, fontFamily: MONO_STACK, textAlign: 'right', color: cum > 0 ? T.text : T.textMute }}>
+                      <td key={p.key} style={{ padding: '12px 10px', fontSize: 15, fontFamily: MONO_STACK, textAlign: 'right', color: cum > 0 ? T.text : T.textMute }}>
                         {cum > 0 ? fmtNum(cum) : '—'}
                       </td>
                     );
                   })}
-                  <td style={{ padding: '12px 16px', fontSize: 18, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 700, color: c.total > 0 ? RETAIL_COLOR : T.textMute }}>
+                  <td style={{ padding: '12px 16px', fontSize: 15, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 700, color: c.total > 0 ? RETAIL_COLOR : T.textMute }}>
                     {c.total > 0 ? fmtNum(c.total) : '—'}
                   </td>
                 </tr>
               ))}
               <tr style={{ borderTop: `2px solid ${RETAIL_COLOR}40`, background: `${RETAIL_COLOR}0a` }}>
-                <td style={{ padding: '12px 16px', fontSize: 18, fontWeight: 700, color: T.text, fontFamily: FONT_STACK }}>합계</td>
+                <td style={{ padding: '12px 16px', fontSize: 15, fontWeight: 700, color: T.text, fontFamily: FONT_STACK }}>합계</td>
                 {PRODUCTS.map(p => (
-                  <td key={p.key} style={{ padding: '12px 10px', fontSize: 18, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 700, color: totals[p.key].cumulative > 0 ? T.text : T.textMute }}>
+                  <td key={p.key} style={{ padding: '12px 10px', fontSize: 15, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 700, color: totals[p.key].cumulative > 0 ? T.text : T.textMute }}>
                     {totals[p.key].cumulative > 0 ? fmtNum(totals[p.key].cumulative) : '—'}
                   </td>
                 ))}
-                <td style={{ padding: '12px 16px', fontSize: 18, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 800, color: RETAIL_COLOR }}>
+                <td style={{ padding: '12px 16px', fontSize: 15, fontFamily: MONO_STACK, textAlign: 'right', fontWeight: 800, color: RETAIL_COLOR }}>
                   {fmtNum(totalMonthCum)}
                 </td>
               </tr>
@@ -265,9 +254,6 @@ export default function RetailDashboard({ report }) {
         </div>
       </Card>
 
-      <div style={{ marginTop: 24, padding: 16, textAlign: 'center', color: T.textMute, fontSize: 13, fontFamily: MONO_STACK }}>
-        파싱: SheetJS · 시각화: Recharts · 데이터는 브라우저에서만 처리됩니다
-      </div>
     </div>
   );
 }

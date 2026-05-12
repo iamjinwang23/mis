@@ -127,23 +127,23 @@ export default function GfpBranches({ report }) {
                         {b.isDirect ? '직영' : '지사'}
                       </span>
                     </td>
-                    <td style={{ padding: '12px 14px', fontSize: 18, fontWeight: isSelected ? 700 : 500, color: isSelected ? T.accent : T.text }}>{b.name}</td>
-                    <td style={{ padding: '12px 14px', fontSize: 18, color: T.textDim }}>{b.manager || '-'}</td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18 }}>{fmtNum(b.count)}</td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18 }}>{fmtMan(b.monthly)}</td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18, color: T.textDim }}>{fmtMan(b.target)}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? T.accent : T.text }}>{b.name}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 15, color: T.textDim }}>{b.manager || '-'}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtNum(b.count)}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtMan(b.monthly)}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: T.textDim }}>{fmtMan(b.target)}</td>
                     <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                         <div style={{ width: 52 }}>
                           <ProgressBar value={b.achieve} color={b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.accent : b.achieve > 0 ? T.yellow : T.textMute} height={4} />
                         </div>
-                        <span style={{ fontFamily: MONO_STACK, fontSize: 18, fontWeight: 600, minWidth: 48, textAlign: 'right', color: b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.text : b.achieve > 0 ? T.yellow : T.textMute }}>
+                        <span style={{ fontFamily: MONO_STACK, fontSize: 15, fontWeight: 600, minWidth: 48, textAlign: 'right', color: b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.text : b.achieve > 0 ? T.yellow : T.textMute }}>
                           {fmtPct(b.achieve)}
                         </span>
                       </div>
                     </td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18 }}>{fmtNum(b.headcount)}</td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 18, color: b.hire > 0 ? T.green : T.textMute }}>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtNum(b.headcount)}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: b.hire > 0 ? T.green : T.textMute }}>
                       {b.hire > 0 ? `+${fmtNum(b.hire)}` : '-'}
                     </td>
                   </tr>
