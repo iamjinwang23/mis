@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import {
-  TrendingUp, Target, Award, BarChart3, Calendar, Activity,
+  TrendingUp, Target, Award, BarChart3, Calendar,
 } from 'lucide-react';
 import { T, MONO_STACK, RADIUS, FONT_STACK } from '../../theme.js';
 import { fmtNum, fmtPct, fmtDate } from '../../utils/formatters.js';
@@ -43,6 +43,21 @@ export default function RetailDashboard({ report }) {
   );
 
   const totalMonthCum = companies.reduce((s, c) => s + c.total, 0);
+
+  // 월별 추세 차트 (이전 3개월 + 당월)
+  const trendChart = useMemo(() => {
+    const labels = summary.prevMonths?.length === 3
+      ? summary.prevMonths
+      : ['전전전월', '전전월', '전월'];
+    const dateObj = reportDate instanceof Date ? reportDate : new Date(reportDate);
+    const curLabel = isNaN(dateObj) ? '당월' : `${dateObj.getMonth() + 1}월`;
+    return [
+      { name: labels[0], 실적: summary.prev1 || 0, isCurrent: false },
+      { name: labels[1], 실적: summary.prev2 || 0, isCurrent: false },
+      { name: labels[2], 실적: summary.prev3 || 0, isCurrent: false },
+      { name: curLabel,  실적: summary.monthCum || 0, isCurrent: true },
+    ];
+  }, [summary, reportDate]);
 
   return (
     <div className="page-wrap">
@@ -122,37 +137,42 @@ export default function RetailDashboard({ report }) {
           </ResponsiveContainer>
         </Card>
 
-        {/* 최근 3개월 취급실적 */}
+        {/* 월별 추세 (이전 3개월 + 당월) */}
         <Card style={{ padding: 24 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>최근 3개월 취급실적</h3>
-          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 20 }}>단위: 백만원</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {[
-              { label: '1월', val: summary.prev1, color: T.textMute },
-              { label: '2월', val: summary.prev2, color: T.textDim },
-              { label: '3월', val: summary.prev3, color: T.text   },
-            ].map(m => {
-              const maxVal = Math.max(summary.prev1, summary.prev2, summary.prev3, 1);
-              const pct = m.val / maxVal;
-              return (
-                <div key={m.label}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: 15, color: T.textDim, fontFamily: MONO_STACK }}>{m.label}</span>
-                    <span style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO_STACK, color: m.color }}>
-                      {fmtNum(m.val)}백만
-                    </span>
-                  </div>
-                  <div style={{ width: '100%', height: 22, borderRadius: 4, background: T.bg2, overflow: 'hidden' }}>
-                    <div style={{
-                      width: `${pct * 100}%`, height: '100%',
-                      background: RETAIL_COLOR, opacity: 0.6 + 0.2 * pct,
-                      borderRadius: 4, transition: 'width 0.5s ease',
-                    }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>월별 취급실적 추세</h3>
+          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>
+            단위: 백만원
+            {summary.monthlyTarget > 0 && (
+              <span style={{ marginLeft: 8, color: T.yellow }}>
+                — 목표 {fmtNum(summary.monthlyTarget)}백만
+              </span>
+            )}
+          </p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={trendChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+              <XAxis dataKey="name" stroke={T.textDim} fontSize={12} />
+              <YAxis stroke={T.textDim} fontSize={11} tickFormatter={v => fmtNum(v)} width={42} />
+              <Tooltip
+                contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 13 }}
+                formatter={v => [`${fmtNum(v)}백만`, '실적']}
+                cursor={{ fill: `${RETAIL_COLOR}10` }}
+              />
+              {summary.monthlyTarget > 0 && (
+                <ReferenceLine
+                  y={summary.monthlyTarget}
+                  stroke={T.yellow}
+                  strokeDasharray="4 3"
+                  label={{ value: '목표', fill: T.yellow, fontSize: 11, position: 'insideTopRight' }}
+                />
+              )}
+              <Bar dataKey="실적" radius={[4, 4, 0, 0]} maxBarSize={52}>
+                {trendChart.map((entry, i) => (
+                  <Cell key={i} fill={entry.isCurrent ? RETAIL_COLOR : `${RETAIL_COLOR}55`} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </Card>
 
         {/* 제품별 현황 */}
@@ -265,9 +285,6 @@ export default function RetailDashboard({ report }) {
         </div>
       </Card>
 
-      <div style={{ marginTop: 24, padding: 16, textAlign: 'center', color: T.textMute, fontSize: 13, fontFamily: MONO_STACK }}>
-        파싱: SheetJS · 시각화: Recharts · 데이터는 브라우저에서만 처리됩니다
-      </div>
     </div>
   );
 }
