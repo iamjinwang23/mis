@@ -5,7 +5,7 @@ import {
   Phone, FileText, Truck, Lock,
   Upload, History, GitCompare,
   ChevronRight, Menu, X, List,
-  TrendingUp, Car,
+  TrendingUp, Car, LogOut,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -61,7 +61,7 @@ const D = {
   itemBg: 'rgba(255,255,255,0.07)',
 };
 
-export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, children }) {
+export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, user, onLogout, children }) {
   const { section, page } = nav;
   const [lnbOpen, setLnbOpen] = useState(false);
 
@@ -257,8 +257,39 @@ export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, c
         </nav>
 
         {/* Footer */}
-        <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}`, fontSize: 11, color: D.textMute, fontFamily: MONO_STACK }}>
-          Cloud · Supabase
+        <div style={{ padding: '10px 12px', borderTop: `1px solid ${D.border}` }}>
+          {user && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{
+                width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+                background: 'rgba(62,143,212,0.2)', color: '#3e8fd4',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700,
+              }}>
+                {user.email?.[0]?.toUpperCase() ?? '?'}
+              </div>
+              <span style={{ flex: 1, fontSize: 11, color: D.textDim, fontFamily: MONO_STACK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.email}
+              </span>
+              <button
+                type="button"
+                onClick={onLogout}
+                title="로그아웃"
+                style={{
+                  flexShrink: 0, padding: 4, borderRadius: 4, border: 'none',
+                  background: 'transparent', color: D.textMute,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#e05252'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = D.textMute; }}
+              >
+                <LogOut size={13} />
+              </button>
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: D.textMute, fontFamily: MONO_STACK }}>
+            Cloud · Supabase
+          </div>
         </div>
       </aside>
 

@@ -10,7 +10,24 @@ function toRow(record) {
     ...record,
     reportDate: record.report_date,
     uploadedAt: record.uploaded_at,
+    uploaderEmail: record.uploader_email ?? null,
   };
+}
+
+// ── Auth ──────────────────────────────────────────────────
+export function onAuthStateChange(cb) {
+  return supabase.auth.onAuthStateChange(cb);
+}
+
+export async function signIn(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data.user;
+}
+
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 }
 
 function toLocalDateStr(d) {
@@ -19,6 +36,7 @@ function toLocalDateStr(d) {
 }
 
 export async function saveReport({ type, filename, reportDate, data }) {
+  const { data: { user } } = await supabase.auth.getUser();
   const { data: row, error } = await supabase
     .from('reports')
     .insert({
@@ -26,6 +44,7 @@ export async function saveReport({ type, filename, reportDate, data }) {
       filename,
       report_date: toLocalDateStr(reportDate),
       data,
+      uploader_email: user?.email ?? null,
     })
     .select()
     .single();
@@ -36,7 +55,7 @@ export async function saveReport({ type, filename, reportDate, data }) {
 export async function listReports(type) {
   let query = supabase
     .from('reports')
-    .select('id, type, filename, report_date, uploaded_at, data')
+    .select('id, type, filename, report_date, uploaded_at, uploader_email, data')
     .order('report_date', { ascending: false });
   if (type) query = query.eq('type', type);
   const { data, error } = await query;

@@ -51,6 +51,9 @@ function ReportRow({ report, onDelete, onSelect }) {
         </div>
         <div style={{ fontSize: 12, color: T.textMute, display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
           <Clock size={10} /> 업로드: {fmtDate(report.uploadedAt)}
+          {report.uploaderEmail && (
+            <span style={{ marginLeft: 4, color: T.textMute }}>· {report.uploaderEmail}</span>
+          )}
         </div>
       </div>
 

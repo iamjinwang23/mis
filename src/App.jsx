@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, Circle } from 'lucide-react';
 import { T, FONT_STACK, MONO_STACK, RADIUS } from './theme.js';
-import { listReports } from './db.js';
+import { listReports, onAuthStateChange, signOut } from './db.js';
 import { fmtDate } from './utils/formatters.js';
 import Layout from './Layout.jsx';
+import LoginPage from './features/auth/LoginPage.jsx';
 
 // GFP pages
 import Dashboard from './features/dashboard/Dashboard.jsx';
@@ -194,6 +195,8 @@ function EmptyState({ section, onUpload }) {
 }
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [nav, setNav] = useState({ section: 'gfp', page: 'dashboard' });
   const [gfpReports, setGfpReports] = useState([]);
   const [autoReports, setAutoReports] = useState([]);
@@ -204,8 +207,16 @@ export default function App() {
   const [selectedAutoIdFrom, setSelectedAutoIdFrom] = useState(null);
   const [selectedRetailId, setSelectedRetailId] = useState(null);
   const [selectedRetailIdFrom, setSelectedRetailIdFrom] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState(null);
+
+  useEffect(() => {
+    const { data: { subscription } } = onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthReady(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -224,7 +235,14 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { loadReports(); }, []);
+  useEffect(() => {
+    if (user) loadReports();
+    else {
+      setGfpReports([]);
+      setAutoReports([]);
+      setRetailReports([]);
+    }
+  }, [user]);
 
   // Font loading
   useEffect(() => {
@@ -347,6 +365,19 @@ export default function App() {
     return null;
   };
 
+  if (!authReady) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: T.bg }}>
+        <div style={{ textAlign: 'center', color: T.textDim }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.accent, margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return <LoginPage />;
+
   return (
     <Layout
       nav={nav}
@@ -354,6 +385,8 @@ export default function App() {
       gfpCount={gfpReports.length}
       autoCount={autoReports.length}
       retailCount={retailReports.length}
+      user={user}
+      onLogout={async () => { await signOut(); }}
     >
       {snackbar && (
         <div style={{
