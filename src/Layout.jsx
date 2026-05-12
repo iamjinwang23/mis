@@ -25,11 +25,11 @@ const NAV_SECTIONS = [
     label: '자동차 보험',
     color: T.green,
     pages: [
-      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard },
-      { key: 'tm', label: 'TM 호전환', icon: Phone },
-      { key: 'contract', label: '계약실', icon: FileText },
-      { key: 'dealer', label: '딜러', icon: Truck },
-      { key: 'permission', label: '퍼미션실', icon: Lock },
+      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard, category: '실적' },
+      { key: 'tm',         label: 'TM 호전환',    icon: Phone,           category: '부서 상세' },
+      { key: 'contract',   label: '계약실',        icon: FileText,        category: '부서 상세' },
+      { key: 'dealer',     label: '딜러',          icon: Truck,           category: '부서 상세' },
+      { key: 'permission', label: '퍼미션실',      icon: Lock,            category: '부서 상세' },
     ],
   },
   {

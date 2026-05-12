@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
 } from 'recharts';
 import {
   Phone, FileText, Truck, Lock, Users, Database,
@@ -63,7 +63,7 @@ function SectionCard({ data, color, icon: Icon, onClick }) {
 }
 
 export default function AutoDashboard({ report, prevReport, onNavigate }) {
-  const { summary, sections } = report.data;
+  const { summary, sections, monthlyTrend } = report.data;
   const reportDate = report.reportDate;
   const s = sections || {};
   const ps = prevReport?.data?.summary || null;
@@ -95,6 +95,20 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
   const totalSuccess = Object.values(s).reduce((sum, sec) => sum + (sec?.success1st || 0), 0);
   const totalAssigned = Object.values(s).reduce((sum, sec) => sum + (sec?.assigned || 0), 0);
 
+  const trendData = useMemo(() => {
+    if (!monthlyTrend?.length) return [];
+    return monthlyTrend.map(m => {
+      const secs = Object.values(m.sections || {});
+      return {
+        name: m.label,
+        보장분석: secs.reduce((a, sec) => a + (sec?.coverage || 0), 0),
+        '1차호전환': secs.reduce((a, sec) => a + (sec?.success1st || 0), 0),
+        신규DB: m.summary?.newDb || 0,
+        갱신배분: m.summary?.assigned || 0,
+      };
+    });
+  }, [monthlyTrend]);
+
   return (
     <div className="page-wrap">
       {/* Page header */}
@@ -120,6 +134,71 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
         <KPICard label="1차 호전환" value={fmtNum(totalSuccess)} sub="전 부서 합산" color={T.purple} icon={Award} delta={ps ? totalSuccess - Object.values(prevReport?.data?.sections||{}).reduce((s,sec)=>s+(sec?.success1st||0),0) : undefined} />
         <KPICard label="TM 성공률" value={`${(summary.successRate * 100).toFixed(1)}%`} sub={`TM 갱신성공 ${fmtNum(summary.tmRenewalSuccess)}`} color={summary.successRate >= 0.5 ? T.green : T.yellow} icon={Target} delta={ps ? (summary.successRate - (ps.successRate||0)) * 100 : undefined} />
       </div>
+
+      {/* 월별 추세 */}
+      {trendData.length >= 2 && (
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>월별 추세</h2>
+          <p style={{ fontSize: 13, color: T.textMute, marginBottom: 16 }}>
+            {trendData.map(d => d.name).join(' → ')} · 전사 합산
+          </p>
+          <div className="grid-2col" style={{ gap: 16 }}>
+            {/* 보장분석 + 1차호전환 */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>보장분석 · 1차 호전환</div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="name" stroke={T.textDim} fontSize={12} />
+                  <YAxis stroke={T.textDim} fontSize={11} width={36} />
+                  <Tooltip
+                    contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 13 }}
+                    formatter={v => fmtNum(v)}
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                  />
+                  <Bar dataKey="보장분석" fill={T.blue} radius={[3, 3, 0, 0]} maxBarSize={48} />
+                  <Bar dataKey="1차호전환" fill={T.accent} radius={[3, 3, 0, 0]} maxBarSize={48} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 10 }}>
+                {[{ label: '보장분석', color: T.blue }, { label: '1차호전환', color: T.accent }].map(l => (
+                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: T.textDim }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* 신규 DB + 갱신 배분 */}
+            <Card style={{ padding: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>신규 DB · 갱신 배분</div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="name" stroke={T.textDim} fontSize={12} />
+                  <YAxis stroke={T.textDim} fontSize={11} width={40} />
+                  <Tooltip
+                    contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 13 }}
+                    formatter={v => fmtNum(v)}
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                  />
+                  <Bar dataKey="신규DB" fill={T.green} radius={[3, 3, 0, 0]} maxBarSize={48} />
+                  <Bar dataKey="갱신배분" fill={T.yellow} radius={[3, 3, 0, 0]} maxBarSize={48} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 10 }}>
+                {[{ label: '신규DB', color: T.green }, { label: '갱신배분', color: T.yellow }].map(l => (
+                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: T.textDim }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* Section Cards Grid */}
       <div style={{ marginBottom: 24 }}>
