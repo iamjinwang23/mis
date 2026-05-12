@@ -9,7 +9,19 @@ import { saveReport, listReports, deleteReport } from '../../db.js';
 import { fmtDate } from '../../utils/formatters.js';
 import { REPORT_TYPES, typeLabel, typeColor } from '../../utils/report_types.js';
 
-export default function UploadView({ onUploaded }) {
+export default function UploadView({ onUploaded, canUpload }) {
+  if (!canUpload) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        minHeight: '70vh', color: T.textMute, padding: 32, textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 36, marginBottom: 16, opacity: 0.3 }}>🔒</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: T.textDim, marginBottom: 8 }}>업로드 권한이 없습니다</div>
+        <div style={{ fontSize: 15 }}>관리자에게 업로드 권한을 요청하세요</div>
+      </div>
+    );
+  }
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);

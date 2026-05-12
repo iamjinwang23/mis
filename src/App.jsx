@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, Circle } from 'lucide-react';
 import { T, FONT_STACK, MONO_STACK, RADIUS } from './theme.js';
-import { listReports, onAuthStateChange, signOut } from './db.js';
+import { listReports, onAuthStateChange, signOut, getProfile } from './db.js';
 import { fmtDate } from './utils/formatters.js';
 import Layout from './Layout.jsx';
 import LoginPage from './features/auth/LoginPage.jsx';
+import MyPage from './features/auth/MyPage.jsx';
 
 // GFP pages
 import Dashboard from './features/dashboard/Dashboard.jsx';
@@ -196,6 +197,7 @@ function EmptyState({ section, onUpload }) {
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [nav, setNav] = useState({ section: 'gfp', page: 'dashboard' });
   const [gfpReports, setGfpReports] = useState([]);
@@ -236,8 +238,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user) loadReports();
-    else {
+    if (user) {
+      loadReports();
+      getProfile(user.email).then(setProfile).catch(console.error);
+    } else {
+      setProfile(null);
       setGfpReports([]);
       setAutoReports([]);
       setRetailReports([]);
@@ -298,8 +303,11 @@ export default function App() {
 
     // Shared pages
     if (section === 'shared') {
+      if (page === 'mypage') {
+        return <MyPage profile={profile} />;
+      }
       if (page === 'upload') {
-        return <UploadView onUploaded={handleUploaded} />;
+        return <UploadView onUploaded={handleUploaded} canUpload={profile?.can_upload ?? false} />;
       }
       if (page === 'history') {
         return (
@@ -386,7 +394,9 @@ export default function App() {
       autoCount={autoReports.length}
       retailCount={retailReports.length}
       user={user}
+      profile={profile}
       onLogout={async () => { await signOut(); }}
+      onMyPage={() => setNav({ section: 'shared', page: 'mypage' })}
     >
       {snackbar && (
         <div style={{

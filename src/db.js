@@ -82,3 +82,36 @@ export async function clearAll() {
   const { error } = await supabase.from('reports').delete().neq('id', 0);
   if (error) throw error;
 }
+
+// ── Profiles ──────────────────────────────────────────────
+export async function getProfile(email) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('email', email)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function listProfiles() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email, name, position, is_admin, can_upload')
+    .order('name');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function updateCanUpload(email, canUpload) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ can_upload: canUpload })
+    .eq('email', email);
+  if (error) throw error;
+}
+
+export async function changePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}

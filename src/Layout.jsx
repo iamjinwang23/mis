@@ -61,7 +61,7 @@ const D = {
   itemBg: 'rgba(255,255,255,0.07)',
 };
 
-export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, user, onLogout, children }) {
+export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, user, profile, onLogout, onMyPage, children }) {
   const { section, page } = nav;
   const [lnbOpen, setLnbOpen] = useState(false);
 
@@ -256,29 +256,52 @@ export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, u
           })}
         </nav>
 
-        {/* Footer */}
+        {/* Footer — 계정 영역 */}
         <div style={{ padding: '10px 12px', borderTop: `1px solid ${D.border}` }}>
           {user && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <div style={{
-                width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                background: 'rgba(62,143,212,0.2)', color: '#3e8fd4',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700,
-              }}>
-                {user.email?.[0]?.toUpperCase() ?? '?'}
-              </div>
-              <span style={{ flex: 1, fontSize: 11, color: D.textDim, fontFamily: MONO_STACK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user.email}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              {/* 클릭 → 마이페이지 */}
+              <button
+                type="button"
+                onClick={onMyPage}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  padding: '4px 6px', borderRadius: 6, textAlign: 'left',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = D.itemBg; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                  background: 'rgba(62,143,212,0.25)', color: '#3e8fd4',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 800,
+                }}>
+                  {(profile?.name ?? user.email)?.[0]?.toUpperCase() ?? '?'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: D.text, lineHeight: 1.2, marginBottom: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {profile ? `${profile.name} ${profile.position}` : user.email}
+                  </div>
+                  {profile && (
+                    <div style={{ fontSize: 10, color: D.textMute, fontFamily: MONO_STACK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user.email}
+                    </div>
+                  )}
+                </div>
+              </button>
+              {/* 로그아웃 */}
               <button
                 type="button"
                 onClick={onLogout}
                 title="로그아웃"
                 style={{
-                  flexShrink: 0, padding: 4, borderRadius: 4, border: 'none',
+                  flexShrink: 0, padding: 5, borderRadius: 4, border: 'none',
                   background: 'transparent', color: D.textMute,
                   cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  transition: 'color 0.15s',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.color = '#e05252'; }}
                 onMouseLeave={e => { e.currentTarget.style.color = D.textMute; }}
@@ -287,7 +310,7 @@ export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, u
               </button>
             </div>
           )}
-          <div style={{ fontSize: 10, color: D.textMute, fontFamily: MONO_STACK }}>
+          <div style={{ fontSize: 10, color: D.textMute, fontFamily: MONO_STACK, paddingLeft: 2 }}>
             Cloud · Supabase
           </div>
         </div>
