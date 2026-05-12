@@ -61,7 +61,7 @@ function DbOps({ report }) {
                   <Icon size={14} />
                 </div>
                 <div>
-                  <h2 style={{ fontSize: 17, fontWeight: 800, color: T.text, margin: 0 }}>{sec.label}</h2>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text, margin: 0 }}>{sec.label}</h2>
                   <p style={{ fontSize: 13, color: T.textMute, margin: 0 }}>{sec.desc}</p>
                 </div>
               </div>
@@ -85,7 +85,7 @@ function DbOps({ report }) {
             </div>
 
             <div style={{ marginTop: 12, padding: '12px 16px', borderRadius: RADIUS.sm, background: T.card, border: `1px solid ${T.border}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: T.textDim, marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, color: T.textDim, marginBottom: 6 }}>
                 <span>DB 배정률 (배정 / 목표)</span>
                 <span style={{ fontFamily: MONO_STACK, color: sec.color }}>{fmtPct(utilRate)}</span>
               </div>
@@ -100,7 +100,7 @@ function DbOps({ report }) {
       })}
 
       {hw.contractRate > 0 && cov.contractRate > 0 && (
-        <div style={{ padding: '14px 16px', borderRadius: RADIUS.sm, background: `${T.accent}08`, border: `1px solid ${T.accent}18`, fontSize: 14, color: T.textDim, lineHeight: 1.7 }}>
+        <div style={{ padding: '14px 16px', borderRadius: RADIUS.sm, background: `${T.accent}08`, border: `1px solid ${T.accent}18`, fontSize: 15, color: T.textDim, lineHeight: 1.7 }}>
           <strong style={{ color: T.accent }}>인사이트</strong> · 호전환 체결율 {fmtPct(hw.contractRate)} vs 보장분석 {fmtPct(cov.contractRate)}
           {hw.contractRate !== cov.contractRate && (
             <span> — <strong style={{ color: T.text }}>{hw.contractRate > cov.contractRate ? '호전환' : '보장분석'}</strong>이 약 {(Math.max(hw.contractRate, cov.contractRate) / Math.min(hw.contractRate, cov.contractRate)).toFixed(1)}배 효율적</span>
@@ -120,7 +120,7 @@ function NeedsBadge({ monthly, actual }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-        <span style={{ fontFamily: MONO_STACK, fontSize: 14, fontWeight: 700, color }}>{fmtNum(actual || 0)}</span>
+        <span style={{ fontFamily: MONO_STACK, fontSize: 15, fontWeight: 700, color }}>{fmtNum(actual || 0)}</span>
         <span style={{ color: T.textMute, fontSize: 12 }}>/ {fmtNum(monthly)}</span>
       </div>
       <ProgressBar value={rate} color={color} height={4} />
@@ -149,8 +149,8 @@ function DbNeeds({ report }) {
   if (!dbNeeds.length) {
     return (
       <Card style={{ padding: 32, textAlign: 'center' }}>
-        <div style={{ fontSize: 16, color: T.textDim, marginBottom: 8 }}>이 보고서에 필요수량 시트가 없습니다.</div>
-        <div style={{ fontSize: 14, color: T.textMute }}>"○월 필요수량" 시트가 포함된 GFP 보고서를 업로드해주세요.</div>
+        <div style={{ fontSize: 15, color: T.textDim, marginBottom: 8 }}>이 보고서에 필요수량 시트가 없습니다.</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>"○월 필요수량" 시트가 포함된 GFP 보고서를 업로드해주세요.</div>
       </Card>
     );
   }
@@ -168,8 +168,8 @@ function DbNeeds({ report }) {
                 padding: '6px 16px', borderRadius: RADIUS.xs,
                 background: activeIdx === i ? T.accent : T.card,
                 border: `1px solid ${activeIdx === i ? T.accent : T.border}`,
-                color: activeIdx === i ? '#fff' : T.textDim,
-                fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: FONT_STACK,
+                color: activeIdx === i ? T.card : T.textDim,
+                fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: FONT_STACK,
               }}
             >
               {d.monthLabel}
@@ -178,7 +178,7 @@ function DbNeeds({ report }) {
         </div>
       )}
 
-      <p style={{ fontSize: 14, color: T.textDim, fontFamily: MONO_STACK, marginBottom: 20 }}>
+      <p style={{ fontSize: 15, color: T.textDim, fontFamily: MONO_STACK, marginBottom: 20 }}>
         {report?.filename} · 영업일 {data.workingDays}일 기준{data.remainDays > 0 ? ` · 잔여 ${data.remainDays}일` : ''}
       </p>
 
@@ -200,7 +200,7 @@ function DbNeeds({ report }) {
 
       {data.direct.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 12 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 12 }}>
             직영 조직
             <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 4, background: `${T.accent}18`, color: T.accent, fontSize: 12, fontWeight: 700 }}>{data.direct.length}개 지점</span>
           </h3>
@@ -220,9 +220,9 @@ function DbNeeds({ report }) {
                       onMouseEnter={e => e.currentTarget.style.background = T.cardHover}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{b.name}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 14, color: T.textDim }}>{b.manager || '—'}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: MONO_STACK, fontSize: 14, color: T.text }}>{b.cov.active || '—'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 15, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{b.name}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 15, color: T.textDim }}>{b.manager || '—'}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: MONO_STACK, fontSize: 15, color: T.text }}>{b.cov.active || '—'}</td>
                       <td style={{ padding: '10px 14px', minWidth: 130 }}><NeedsBadge monthly={b.cov.monthly} actual={b.actual?.covContracts} /></td>
                       <td style={{ padding: '10px 14px', minWidth: 130 }}><NeedsBadge monthly={b.hw.monthly} actual={b.actual?.hwContracts} /></td>
                     </tr>
@@ -236,7 +236,7 @@ function DbNeeds({ report }) {
 
       {data.indirect.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 12 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 12 }}>
             지사 조직
             <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 4, background: `${T.green}18`, color: T.green, fontSize: 12, fontWeight: 700 }}>{data.indirect.length}개 지점</span>
           </h3>
@@ -256,9 +256,9 @@ function DbNeeds({ report }) {
                       onMouseEnter={e => e.currentTarget.style.background = T.cardHover}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{b.name}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 14, color: T.textDim }}>{b.manager || '—'}</td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: MONO_STACK, fontSize: 14, color: T.text }}>{b.cov.active || '—'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 15, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>{b.name}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 15, color: T.textDim }}>{b.manager || '—'}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: MONO_STACK, fontSize: 15, color: T.text }}>{b.cov.active || '—'}</td>
                       <td style={{ padding: '10px 14px', minWidth: 130 }}><NeedsBadge monthly={b.cov.monthly} actual={b.actual?.covContracts} /></td>
                     </tr>
                   ))}
@@ -312,7 +312,7 @@ export default function GfpDb({ report }) {
                 border: 'none', background: 'transparent',
                 color: tab === t.key ? T.accent : T.textDim,
                 fontWeight: tab === t.key ? 700 : 400,
-                fontSize: 14, cursor: 'pointer',
+                fontSize: 15, cursor: 'pointer',
                 borderBottom: tab === t.key ? `2px solid ${T.accent}` : '2px solid transparent',
                 marginBottom: -1, fontFamily: FONT_STACK, transition: 'all 0.15s',
               }}

@@ -58,7 +58,7 @@ function AgentTable({ agents, columns, groupByManager = false }) {
       onMouseEnter={e => e.currentTarget.style.background = T.cardHover}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
     >
-      <td style={{ padding: '10px 14px', fontSize: 18, fontWeight: 500, color: T.text }}>
+      <td style={{ padding: '10px 14px', fontSize: 15, fontWeight: 500, color: T.text }}>
         {agent.name}
       </td>
       <td style={{ padding: '10px 14px' }}>
@@ -73,7 +73,7 @@ function AgentTable({ agents, columns, groupByManager = false }) {
       {columns.map(col => (
         <td key={col.key} style={{
           padding: '10px 14px', textAlign: 'right',
-          fontFamily: MONO_STACK, fontSize: 18,
+          fontFamily: MONO_STACK, fontSize: 15,
           color: col.highlight && agent[col.key] > 0 ? col.highlight : T.text,
           fontWeight: agent[col.key] > 0 ? 600 : 400,
         }}>

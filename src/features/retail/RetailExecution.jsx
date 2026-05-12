@@ -51,7 +51,7 @@ function ExecRow({ e, idx, total }) {
           </span>
         ) : <span style={{ color: T.textMute }}>—</span>}
       </td>
-      <td style={{ padding: '10px 10px', fontSize: 14, color: T.text, fontFamily: FONT_STACK }}>
+      <td style={{ padding: '10px 10px', fontSize: 15, color: T.text, fontFamily: FONT_STACK }}>
         {e.customer || '—'}
       </td>
       <td style={{ padding: '10px 10px', fontSize: 13, color: T.textDim, fontFamily: FONT_STACK }}>
@@ -60,7 +60,7 @@ function ExecRow({ e, idx, total }) {
       <td style={{ padding: '10px 10px', fontSize: 13, color: T.textDim }}>
         {e.bank || '—'}
       </td>
-      <td style={{ padding: '10px 16px', textAlign: 'right', fontSize: 14, fontFamily: MONO_STACK, fontWeight: 700, color: e.amount > 0 ? RETAIL_COLOR : T.textMute, whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '10px 16px', textAlign: 'right', fontSize: 15, fontFamily: MONO_STACK, fontWeight: 700, color: e.amount > 0 ? RETAIL_COLOR : T.textMute, whiteSpace: 'nowrap' }}>
         {e.amount > 0 ? `${fmtNum(e.amount)}백만` : '—'}
       </td>
     </tr>
