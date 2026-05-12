@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Lock, Shield, ChevronRight } from 'lucide-react';
+import { Lock, Shield, X } from 'lucide-react';
 import { T, FONT_STACK, MONO_STACK, RADIUS } from '../../theme.js';
 import { changePassword, listProfiles, updateCanUpload } from '../../db.js';
 import Card from '../../components/Card.jsx';
@@ -28,12 +28,130 @@ const tdStyle = {
   color: T.text, fontFamily: FONT_STACK,
 };
 
-export default function MyPage({ profile, onProfileChange }) {
+function PasswordModal({ email, onClose }) {
+  const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
-  const [pwLoading, setPwLoading] = useState(false);
-  const [pwResult, setPwResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setResult(null);
+    if (newPw !== confirmPw) {
+      setResult({ ok: false, msg: '새 비밀번호가 일치하지 않습니다.' });
+      return;
+    }
+    if (newPw.length < 6) {
+      setResult({ ok: false, msg: '비밀번호는 6자 이상이어야 합니다.' });
+      return;
+    }
+    setLoading(true);
+    try {
+      await changePassword(email, currentPw, newPw);
+      setResult({ ok: true, msg: '비밀번호가 변경되었습니다.' });
+      setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    } catch (err) {
+      setResult({ ok: false, msg: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        width: 420, background: T.card, borderRadius: RADIUS.lg,
+        border: `1px solid ${T.border}`, padding: '28px 28px 24px',
+        boxShadow: '0 12px 40px rgba(26,39,68,0.18)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Lock size={15} color={T.accent} />
+            <span style={{ fontSize: 17, fontWeight: 700, color: T.text }}>비밀번호 변경</span>
+          </div>
+          <button type="button" onClick={onClose} style={{
+            padding: 4, border: 'none', background: 'transparent',
+            color: T.textMute, cursor: 'pointer', borderRadius: 4,
+          }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>현재 비밀번호</label>
+            <input
+              type="password" value={currentPw}
+              onChange={e => { setCurrentPw(e.target.value); setResult(null); }}
+              required placeholder="현재 비밀번호 입력" style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = T.accent; }}
+              onBlur={e => { e.target.style.borderColor = T.border; }}
+            />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>새 비밀번호</label>
+            <input
+              type="password" value={newPw}
+              onChange={e => { setNewPw(e.target.value); setResult(null); }}
+              required minLength={6} placeholder="6자 이상" style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = T.accent; }}
+              onBlur={e => { e.target.style.borderColor = T.border; }}
+            />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={labelStyle}>새 비밀번호 확인</label>
+            <input
+              type="password" value={confirmPw}
+              onChange={e => { setConfirmPw(e.target.value); setResult(null); }}
+              required placeholder="동일하게 입력" style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = T.accent; }}
+              onBlur={e => { e.target.style.borderColor = T.border; }}
+            />
+          </div>
+
+          {result && (
+            <div style={{
+              marginBottom: 16, padding: '10px 12px', borderRadius: RADIUS.xs, fontSize: 13,
+              background: result.ok ? `${T.green}18` : T.redSoft,
+              border: `1px solid ${result.ok ? T.green : T.red}40`,
+              color: result.ok ? T.green : T.red,
+            }}>
+              {result.msg}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={onClose} style={{
+              padding: '9px 18px', borderRadius: RADIUS.xs, border: `1px solid ${T.border}`,
+              background: 'transparent', color: T.textDim, fontSize: 14,
+              cursor: 'pointer', fontFamily: FONT_STACK,
+            }}>
+              취소
+            </button>
+            <button type="submit" disabled={loading} style={{
+              padding: '9px 20px', borderRadius: RADIUS.xs, border: 'none',
+              background: loading ? `${T.accent}80` : T.accent,
+              color: '#fff', fontSize: 14, fontWeight: 700,
+              cursor: loading ? 'not-allowed' : 'pointer', fontFamily: FONT_STACK,
+            }}>
+              {loading ? '변경 중...' : '변경하기'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function MyPage({ profile }) {
+  const [showPwModal, setShowPwModal] = useState(false);
   const [profiles, setProfiles] = useState([]);
   const [listLoading, setListLoading] = useState(false);
 
@@ -47,30 +165,6 @@ export default function MyPage({ profile, onProfileChange }) {
       .catch(console.error)
       .finally(() => setListLoading(false));
   }, [isAdmin]);
-
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    setPwResult(null);
-    if (newPw !== confirmPw) {
-      setPwResult({ ok: false, msg: '비밀번호가 일치하지 않습니다.' });
-      return;
-    }
-    if (newPw.length < 6) {
-      setPwResult({ ok: false, msg: '비밀번호는 6자 이상이어야 합니다.' });
-      return;
-    }
-    setPwLoading(true);
-    try {
-      await changePassword(newPw);
-      setPwResult({ ok: true, msg: '비밀번호가 변경되었습니다.' });
-      setNewPw('');
-      setConfirmPw('');
-    } catch (err) {
-      setPwResult({ ok: false, msg: '변경 실패: ' + err.message });
-    } finally {
-      setPwLoading(false);
-    }
-  };
 
   const handleToggle = async (email, current, isAdminRow) => {
     if (isAdminRow) return;
@@ -86,6 +180,10 @@ export default function MyPage({ profile, onProfileChange }) {
 
   return (
     <div className="page-wrap">
+      {showPwModal && (
+        <PasswordModal email={profile?.email} onClose={() => setShowPwModal(false)} />
+      )}
+
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>마이페이지</h1>
         <p style={{ fontSize: 18, color: T.textDim, fontFamily: MONO_STACK }}>
@@ -95,8 +193,26 @@ export default function MyPage({ profile, onProfileChange }) {
 
       {/* 내 정보 */}
       <Card style={{ padding: 24, marginBottom: 20, maxWidth: 520 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 18 }}>내 정보</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', rowGap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: T.text }}>내 정보</h2>
+          <button
+            type="button"
+            onClick={() => setShowPwModal(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px', borderRadius: RADIUS.xs,
+              border: `1px solid ${T.border}`, background: 'transparent',
+              color: T.textDim, fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: FONT_STACK,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.color = T.accent; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDim; }}
+          >
+            <Lock size={12} /> 비밀번호 변경
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', rowGap: 12 }}>
           {[
             { label: '이름',   value: profile?.name },
             { label: '직책',   value: profile?.position },
@@ -104,71 +220,13 @@ export default function MyPage({ profile, onProfileChange }) {
             { label: '권한',   value: isAdmin ? '관리자' : profile?.can_upload ? '업로드 가능' : '조회 전용' },
           ].map(({ label, value }) => (
             <>
-              <span key={label + 'l'} style={{ fontSize: 13, color: T.textMute, fontWeight: 600 }}>{label}</span>
-              <span key={label + 'v'} style={{ fontSize: 15, color: T.text, fontFamily: label === '이메일' ? MONO_STACK : FONT_STACK }}>
+              <span key={label + 'l'} style={{ fontSize: 13, color: T.textMute, fontWeight: 600, lineHeight: '1.6' }}>{label}</span>
+              <span key={label + 'v'} style={{ fontSize: 15, color: T.text, fontFamily: label === '이메일' ? MONO_STACK : FONT_STACK, lineHeight: '1.6' }}>
                 {value}
               </span>
             </>
           ))}
         </div>
-      </Card>
-
-      {/* 비밀번호 변경 */}
-      <Card style={{ padding: 24, marginBottom: 20, maxWidth: 520 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Lock size={15} color={T.accent} /> 비밀번호 변경
-        </h2>
-        <form onSubmit={handlePasswordChange}>
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>새 비밀번호</label>
-            <input
-              type="password"
-              value={newPw}
-              onChange={e => { setNewPw(e.target.value); setPwResult(null); }}
-              required
-              minLength={6}
-              placeholder="6자 이상"
-              style={inputStyle}
-              onFocus={e => { e.target.style.borderColor = T.accent; }}
-              onBlur={e => { e.target.style.borderColor = T.border; }}
-            />
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>비밀번호 확인</label>
-            <input
-              type="password"
-              value={confirmPw}
-              onChange={e => { setConfirmPw(e.target.value); setPwResult(null); }}
-              required
-              placeholder="동일하게 입력"
-              style={inputStyle}
-              onFocus={e => { e.target.style.borderColor = T.accent; }}
-              onBlur={e => { e.target.style.borderColor = T.border; }}
-            />
-          </div>
-          {pwResult && (
-            <div style={{
-              marginBottom: 14, padding: '10px 12px', borderRadius: RADIUS.xs, fontSize: 13,
-              background: pwResult.ok ? `${T.green}18` : T.redSoft,
-              border: `1px solid ${pwResult.ok ? T.green : T.red}40`,
-              color: pwResult.ok ? T.green : T.red,
-            }}>
-              {pwResult.msg}
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={pwLoading}
-            style={{
-              padding: '10px 24px', borderRadius: RADIUS.xs, border: 'none',
-              background: pwLoading ? `${T.accent}80` : T.accent,
-              color: '#fff', fontSize: 14, fontWeight: 700,
-              cursor: pwLoading ? 'not-allowed' : 'pointer', fontFamily: FONT_STACK,
-            }}
-          >
-            {pwLoading ? '변경 중...' : '비밀번호 변경'}
-          </button>
-        </form>
       </Card>
 
       {/* 관리자 전용: 업로드 권한 관리 */}

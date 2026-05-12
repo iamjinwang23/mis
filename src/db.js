@@ -111,7 +111,9 @@ export async function updateCanUpload(email, canUpload) {
   if (error) throw error;
 }
 
-export async function changePassword(newPassword) {
+export async function changePassword(email, currentPassword, newPassword) {
+  const { error: authError } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+  if (authError) throw new Error('현재 비밀번호가 올바르지 않습니다.');
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
 }
