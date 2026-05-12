@@ -22,15 +22,6 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    key: 'retail',
-    label: '리테일 사업부',
-    color: T.purple,
-    pages: [
-      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard },
-      { key: 'execution', label: '실행내역', icon: List },
-    ],
-  },
-  {
     key: 'auto',
     label: '자동차 보험',
     color: T.green,
@@ -40,6 +31,15 @@ const NAV_SECTIONS = [
       { key: 'contract', label: '계약실', icon: FileText },
       { key: 'dealer', label: '딜러', icon: Truck },
       { key: 'permission', label: '퍼미션실', icon: Lock },
+    ],
+  },
+  {
+    key: 'retail',
+    label: '리테일 사업부',
+    color: T.purple,
+    pages: [
+      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard },
+      { key: 'execution', label: '실행내역', icon: List },
     ],
   },
 ];
