@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { T, FONT_STACK, MONO_STACK } from './theme.js';
 import {
-  LayoutDashboard, Building2, Database, Users, Calculator,
+  LayoutDashboard, Building2, Database, Users,
   Phone, FileText, Truck, Lock,
   Upload, History, GitCompare,
   ChevronRight, Menu, X, List,
-  TrendingUp, Car, LogOut,
+  LogOut,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -14,11 +14,10 @@ const NAV_SECTIONS = [
     label: 'GFP 총괄',
     color: '#3e8fd4',
     pages: [
-      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard },
-      { key: 'branches', label: '지점별 실적', icon: Building2 },
-      { key: 'db', label: 'DB 운영현황', icon: Database },
-      { key: 'personnel', label: '인원 현황', icon: Users },
-      { key: 'dbneeds', label: 'DB 필요수량', icon: Calculator },
+      { key: 'dashboard', label: '메인 대시보드', icon: LayoutDashboard, category: '실적' },
+      { key: 'branches',  label: '지점별 실적',   icon: Building2,       category: '실적' },
+      { key: 'personnel', label: '인원 현황',      icon: Users,           category: '인원' },
+      { key: 'db',        label: 'DB 현황',        icon: Database,        category: 'DB'   },
     ],
   },
   {
@@ -160,52 +159,69 @@ export default function Layout({ nav, onNav, gfpCount, autoCount, retailCount, u
                 </span>
               </div>
 
-              {/* Page items */}
-              {sec.pages.map(pg => {
-                const isActive = section === sec.key && page === pg.key;
-                const Icon = pg.icon;
-                return (
-                  <button type="button"
-                    key={pg.key}
-                    onClick={() => onNav({ section: sec.key, page: pg.key })}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '7px 16px 7px 20px',
-                      border: 'none',
-                      background: isActive
-                        ? `${sec.color}18`
-                        : 'transparent',
-                      color: isActive ? sec.color : D.textDim,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: 15,
-                      fontFamily: FONT_STACK,
-                      fontWeight: isActive ? 600 : 400,
-                      transition: 'all 0.15s',
-                      borderLeft: isActive ? `2px solid ${sec.color}` : '2px solid transparent',
-                    }}
-                    onMouseEnter={e => {
-                      if (!isActive) {
-                        e.currentTarget.style.background = D.itemBg;
-                        e.currentTarget.style.color = D.text;
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!isActive) {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = D.textDim;
-                      }
-                    }}
-                  >
-                    <Icon size={14} strokeWidth={isActive ? 2.5 : 1.8} />
-                    <span>{pg.label}</span>
-                    {isActive && <ChevronRight size={11} style={{ marginLeft: 'auto', opacity: 0.5 }} />}
-                  </button>
-                );
-              })}
+              {/* Page items — grouped by category when present */}
+              {(() => {
+                const groups = sec.pages.reduce((acc, pg) => {
+                  const cat = pg.category || '';
+                  const last = acc[acc.length - 1];
+                  if (last && last.cat === cat) { last.pgs.push(pg); }
+                  else { acc.push({ cat, pgs: [pg] }); }
+                  return acc;
+                }, []);
+
+                return groups.map(({ cat, pgs }) => (
+                  <div key={cat || '__none__'}>
+                    {cat && (
+                      <div style={{
+                        padding: '6px 16px 2px 22px',
+                        fontSize: 10, fontWeight: 700, color: D.textMute,
+                        letterSpacing: '0.09em', textTransform: 'uppercase',
+                      }}>
+                        {cat}
+                      </div>
+                    )}
+                    {pgs.map(pg => {
+                      const isActive = section === sec.key && page === pg.key;
+                      const Icon = pg.icon;
+                      return (
+                        <button type="button"
+                          key={pg.key}
+                          onClick={() => onNav({ section: sec.key, page: pg.key })}
+                          style={{
+                            width: '100%',
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '7px 16px 7px 20px',
+                            border: 'none',
+                            background: isActive ? `${sec.color}18` : 'transparent',
+                            color: isActive ? sec.color : D.textDim,
+                            cursor: 'pointer', textAlign: 'left',
+                            fontSize: 15, fontFamily: FONT_STACK,
+                            fontWeight: isActive ? 600 : 400,
+                            transition: 'all 0.15s',
+                            borderLeft: isActive ? `2px solid ${sec.color}` : '2px solid transparent',
+                          }}
+                          onMouseEnter={e => {
+                            if (!isActive) {
+                              e.currentTarget.style.background = D.itemBg;
+                              e.currentTarget.style.color = D.text;
+                            }
+                          }}
+                          onMouseLeave={e => {
+                            if (!isActive) {
+                              e.currentTarget.style.background = 'transparent';
+                              e.currentTarget.style.color = D.textDim;
+                            }
+                          }}
+                        >
+                          <Icon size={14} strokeWidth={isActive ? 2.5 : 1.8} />
+                          <span>{pg.label}</span>
+                          {isActive && <ChevronRight size={11} style={{ marginLeft: 'auto', opacity: 0.5 }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ));
+              })()}
             </div>
           ))}
 

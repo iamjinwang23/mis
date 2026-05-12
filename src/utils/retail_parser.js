@@ -25,12 +25,20 @@ export function parseRetailReport(buffer) {
   // row index 1 (행2) — 영업일 정보
   const businessDayInfo = String(aoa[1]?.[4] || '').trim();
 
+  // row index 4 (행5) — 헤더: 이전 월 레이블
+  const headerRow = aoa[4] || [];
+  const prevMonths = [
+    String(headerRow[4] || '').trim(),
+    String(headerRow[5] || '').trim(),
+    String(headerRow[6] || '').trim(),
+  ];
+
   // row index 5 (행6) — 합계 KPI
   const sumRow = aoa[5] || [];
   const monthlyTarget  = parseNum(sumRow[2]);   // C6
-  const prev1          = parseNum(sumRow[4]);   // E6 1월
-  const prev2          = parseNum(sumRow[5]);   // F6 2월
-  const prev3          = parseNum(sumRow[6]);   // G6 3월
+  const prev1          = parseNum(sumRow[4]);   // E6
+  const prev2          = parseNum(sumRow[5]);   // F6
+  const prev3          = parseNum(sumRow[6]);   // G6
   const quarterTarget  = parseNum(sumRow[7]);   // H6
   const quarterCum     = parseNum(sumRow[8]);   // I6
   const todayNew       = parseNum(sumRow[10]);  // K6
@@ -43,6 +51,7 @@ export function parseRetailReport(buffer) {
     quarterTarget, quarterCum, quarterAchieve,
     todayNew,
     prev1, prev2, prev3,
+    prevMonths,
     businessDayInfo,
   };
 
@@ -74,9 +83,21 @@ export function parseRetailReport(buffer) {
   const ws2 = wb.Sheets['실행내역'];
   if (ws2) {
     const aoa2 = XLSX.utils.sheet_to_json(ws2, { header: 1, defval: null });
-    for (const row of aoa2) {
-      const v = row[0];
-      if (v && typeof v === 'string' && v.trim()) executions.push(v.trim());
+    for (let i = 1; i < aoa2.length; i++) {
+      const row = aoa2[i] || [];
+      const product = String(row[1] || '').trim();
+      if (!product) continue;
+      const dateRaw = row[0];
+      executions.push({
+        date: dateRaw instanceof Date
+          ? `${dateRaw.getMonth() + 1}월 ${dateRaw.getDate()}일`
+          : String(dateRaw || '').trim(),
+        product,
+        customer: String(row[2] || '').trim() || null,
+        vehicle:  String(row[3] || '').trim() || null,
+        amount:   parseNum(row[4]),
+        bank:     String(row[5] || '').trim() || null,
+      });
     }
   }
 
