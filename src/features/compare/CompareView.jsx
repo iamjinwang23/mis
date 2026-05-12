@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ArrowUpRight, ArrowDownRight, ChevronUp, ChevronDown, Calendar, RefreshCcw } from 'lucide-react';
 import { T, FONT_STACK, MONO_STACK, RADIUS } from '../../theme.js';
 import { fmtNum, fmtPct, fmtMan, fmtDate } from '../../utils/formatters.js';
@@ -58,6 +58,15 @@ export default function CompareView({ gfpReports, retailReports, autoReports }) 
 
   const reportA = idA != null ? reports.find(r => r.id === idA) : null;
   const reportB = idB != null ? reports.find(r => r.id === idB) : null;
+
+  // 기준일(B=최신) 선택 시 비교일(A)은 그보다 이전 날짜만 선택 가능
+  const aReports = reportB
+    ? reports.filter(r => r.reportDate < reportB.reportDate)
+    : reports;
+  // 비교일(A=과거) 선택 시 기준일(B)은 그보다 이후 날짜만 선택 가능
+  const bReports = reportA
+    ? reports.filter(r => r.reportDate > reportA.reportDate)
+    : reports;
 
   // GFP compare
   const gfpKpi = useMemo(() => {
@@ -135,6 +144,15 @@ export default function CompareView({ gfpReports, retailReports, autoReports }) 
     ];
   }, [reportA, reportB, compareType]);
 
+  // 기준일 변경 시 비교일이 기준일보다 최신이면 초기화
+  useEffect(() => {
+    if (idB && reportA && reportB && reportA.reportDate >= reportB.reportDate) setIdA(null);
+  }, [idB]);
+  // 비교일 변경 시 기준일이 비교일보다 과거이면 초기화
+  useEffect(() => {
+    if (idA && reportA && reportB && reportB.reportDate <= reportA.reportDate) setIdB(null);
+  }, [idA]);
+
   const handleSort = (k) => {
     if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(k); setSortDir('desc'); }
@@ -202,8 +220,8 @@ export default function CompareView({ gfpReports, retailReports, autoReports }) 
           {/* Date selectors */}
           <Card style={{ padding: 20, marginBottom: 24 }}>
             <div className="grid-2col" style={{ gap: 20 }}>
-              <DateSelect label="기준일 (Before)" reports={reports} value={idA} onChange={setIdA} />
-              <DateSelect label="비교일 (After)" reports={reports} value={idB} onChange={setIdB} />
+              <DateSelect label="비교일 (과거)" reports={aReports} value={idA} onChange={(v) => { setIdA(v); }} />
+              <DateSelect label="기준일 (현재)" reports={bReports} value={idB} onChange={(v) => { setIdB(v); }} />
             </div>
             {idA && idB && idA === idB && (
               <div style={{ marginTop: 12, fontSize: 15, color: T.yellow }}>
