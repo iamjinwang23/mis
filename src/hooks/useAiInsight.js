@@ -55,9 +55,13 @@ function buildPrompt(type, data) {
 
   if (type === 'auto') {
     const { summary = {}, sections = {}, totalCoverage = 0, totalSuccess = 0, totalAssigned = 0 } = data;
+    const SECTION_LABELS = {
+      tmHoJeon: 'TM 호전환', contract: '계약실',
+      dealerNew: '딜러 신규실', dealerRenewal: '딜러 갱신실',
+    };
     const sectionRows = Object.entries(sections)
       .filter(([, s]) => s)
-      .map(([k, s]) => `  ${k}: 보장분석 ${s.coverage||0}건, 1차호전환 ${s.success1st||0}건, 배정 ${s.assigned||0}건`)
+      .map(([k, s]) => `  ${SECTION_LABELS[k] || k}: 보장분석 ${s.coverage||0}건, 1차호전환 ${s.success1st||0}건, 배정 ${s.assigned||0}건`)
       .join('\n');
     return `당신은 영업 데이터 분석 전문가입니다. 아래 자동차 보험 대시보드 데이터를 분석해서 한국어로 인사이트를 2~3문장으로 자연스럽게 서술해주세요. 현재 상태 진단, 주요 리스크, 실행 추천을 녹여서 하나의 흐름 있는 문단으로 작성하세요. JSON이나 목록 없이 문장만 출력하세요.
 
