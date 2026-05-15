@@ -16,6 +16,12 @@ function Skeleton() {
 
 export default function AiInsightCard({ insight, loading, error, onRefresh, reportDate }) {
   const isNoKey = error?.includes('VITE_GEMINI_API_KEY');
+  const isQuota = error && (
+    error.includes('spending cap') ||
+    error.includes('quota') ||
+    error.includes('RESOURCE_EXHAUSTED') ||
+    error.includes('429')
+  );
 
   return (
     <div style={{
@@ -82,7 +88,17 @@ export default function AiInsightCard({ insight, loading, error, onRefresh, repo
         {/* Body */}
         {loading && !insight && <Skeleton />}
 
-        {error && !isNoKey && (
+        {isQuota && (
+          <div style={{
+            padding: '10px 14px', borderRadius: RADIUS.sm,
+            background: '#f8fafc', border: '1px solid #e2e8f0',
+            fontSize: 13, color: '#94a3b8', fontFamily: FONT_STACK,
+          }}>
+            오늘의 AI 분석 한도에 도달했습니다. 내일 자동으로 초기화됩니다.
+          </div>
+        )}
+
+        {error && !isNoKey && !isQuota && (
           <div style={{
             padding: '10px 14px', borderRadius: RADIUS.sm,
             background: '#fff1f2', border: '1px solid #fecdd3',
