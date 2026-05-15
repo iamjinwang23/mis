@@ -1,32 +1,14 @@
-import { RefreshCw, AlertTriangle, TrendingUp, Lightbulb, Activity } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { RADIUS, FONT_STACK, MONO_STACK } from '../theme.js';
-
-const ITEMS = [
-  { key: 'diagnosis', label: '진단',   icon: Activity,      color: '#6366f1' },
-  { key: 'risk',      label: '리스크', icon: AlertTriangle,  color: '#f43f5e' },
-  { key: 'forecast',  label: '예측',   icon: TrendingUp,     color: '#10b981' },
-  { key: 'action',    label: '처방',   icon: Lightbulb,      color: '#f59e0b' },
-];
 
 const GRADIENT = 'linear-gradient(135deg, #c084fc 0%, #818cf8 40%, #38bdf8 100%)';
 
 function Skeleton() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
-      {ITEMS.map(item => (
-        <div key={item.key} style={{
-          padding: '12px 14px', borderRadius: RADIUS.sm,
-          background: '#f8fafc', border: '1px solid #e2e8f0',
-          animation: 'pulse 1.5s ease-in-out infinite',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <div style={{ width: 22, height: 22, borderRadius: 4, background: '#e2e8f0' }} />
-            <div style={{ width: 32, height: 13, borderRadius: 3, background: '#e2e8f0' }} />
-          </div>
-          <div style={{ height: 12, borderRadius: 3, background: '#e2e8f0', marginBottom: 6 }} />
-          <div style={{ height: 12, borderRadius: 3, background: '#e2e8f0', width: '65%' }} />
-        </div>
-      ))}
+    <div style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>
+      <div style={{ height: 14, borderRadius: 4, background: '#e2e8f0', marginBottom: 8 }} />
+      <div style={{ height: 14, borderRadius: 4, background: '#e2e8f0', marginBottom: 8, width: '90%' }} />
+      <div style={{ height: 14, borderRadius: 4, background: '#e2e8f0', width: '70%' }} />
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }`}</style>
     </div>
   );
@@ -122,51 +104,17 @@ export default function AiInsightCard({ insight, loading, error, onRefresh, repo
         )}
 
         {insight && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 10,
+          <p style={{
+            margin: 0,
+            fontSize: 14,
+            lineHeight: 1.8,
+            color: '#1e293b',
+            fontFamily: FONT_STACK,
             opacity: loading ? 0.5 : 1,
             transition: 'opacity 0.3s',
           }}>
-            {ITEMS.map(item => {
-              const Icon = item.icon;
-              const text = insight[item.key];
-              if (!text) return null;
-              return (
-                <div key={item.key} style={{
-                  padding: '12px 14px',
-                  borderRadius: RADIUS.sm,
-                  background: `${item.color}08`,
-                  border: `1px solid ${item.color}22`,
-                  display: 'flex', flexDirection: 'column', gap: 7,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{
-                      width: 22, height: 22, borderRadius: 4, flexShrink: 0,
-                      background: `${item.color}15`, color: item.color,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Icon size={12} />
-                    </div>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, fontFamily: FONT_STACK,
-                      color: item.color, letterSpacing: '0.03em',
-                      textTransform: 'uppercase',
-                    }}>
-                      {item.label}
-                    </span>
-                  </div>
-                  <p style={{
-                    margin: 0, fontSize: 13, color: '#1e293b',
-                    lineHeight: 1.6, fontFamily: FONT_STACK,
-                  }}>
-                    {text}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+            {insight}
+          </p>
         )}
       </div>
     </div>
