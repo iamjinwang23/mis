@@ -3,9 +3,9 @@
 > **Summary**: Excel 업로드 → Supabase 클라우드 저장 → 16페이지 멀티섹션 대시보드 SPA + Supabase Auth 계정/권한 시스템 설계
 >
 > **Project**: gfp-dashboard
-> **Version**: 2.0.0
+> **Version**: 2.1.0
 > **Author**: 개발팀
-> **Date**: 2026-05-12
+> **Date**: 2026-05-15
 > **Status**: Implemented (운영 중)
 > **Planning Doc**: [mis-dashboard.plan.md](../01-plan/features/mis-dashboard.plan.md)
 
@@ -340,7 +340,25 @@ Auto Section (1) ──── (N) Agent
 | `listProfiles()` | 전체 프로필 목록 (관리자용) | Promise\<Profile[]\> |
 | `updateCanUpload(email, canUpload)` | 업로드 권한 변경 (관리자만) | Promise\<void\> |
 
-### 4.4 Parser API (utils/)
+### 4.4 AI 인사이트 API (hooks/useAiInsight.js)
+
+| 항목 | 값 |
+|------|-----|
+| 모델 | `gemini-2.5-flash-lite` |
+| 엔드포인트 | `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` |
+| API 키 | `VITE_GEMINI_API_KEY` (환경변수) |
+| 호출 방식 | 대시보드별 순차 큐 (gfp: 0ms, auto: 4000ms, retail: 8000ms 딜레이) |
+| 캐싱 | `sessionStorage` — 키: `ai-insight-v{VERSION}-{type}-{reportDate}` |
+| 출력 형식 | 자연어 단일 문단 (JSON→파싱→텍스트 추출, 추출 실패 시 원문 사용) |
+
+| Return | Type | Description |
+|--------|------|-------------|
+| `insight` | string \| null | 생성된 인사이트 문단 |
+| `loading` | boolean | API 호출 중 여부 |
+| `error` | string \| null | 오류 메시지 (API 키 누락 포함) |
+| `onRefresh` | function | 캐시 무효화 후 재호출 |
+
+### 4.5 Parser API (utils/)
 
 | Function | File | Input | Output |
 |----------|------|-------|--------|
@@ -434,10 +452,13 @@ Auto Section (1) ──── (N) Agent
 | `KPICard` | `src/components/` | KPI 수치 + 전기 대비 델타 뱃지 |
 | `SortHead` | `src/components/` | 정렬 가능한 테이블 헤더 |
 | `ProgressBar` | `src/components/` | 비율 시각화 바 |
+| `AiInsightCard` | `src/components/` | AI 인사이트 — 자연어 단일 문단, 스켈레톤 로딩, 새로고침 버튼 |
+| `useAiInsight` (hook) | `src/hooks/` | Gemini 2.5 Flash Lite API 호출, 결과 캐싱, 순차 큐 (3개 동시 호출 방지) |
 | `Dashboard` | `src/features/dashboard/` | GFP 메인 대시보드 |
 | `GfpBranches` | `src/features/dashboard/` | GFP 지점별 실적 테이블 |
 | `GfpPersonnel` | `src/features/dashboard/` | GFP 인원 현황 |
-| `GfpDbPage` | `src/features/dashboard/` | GFP DB 운영현황 |
+| `GfpDbPage` | `src/features/dashboard/` | GFP DB 운영현황 (레거시) |
+| `GfpDb` | `src/features/dashboard/` | GFP DB 운영현황 (v2-redesign 통합본, GfpDbPage 대체) |
 | `BranchDetailPanel` | `src/features/dashboard/` | 지점 상세 슬라이드 패널 |
 | `GfpDbNeeds` | `src/features/dashboard/` | DB 필요수량 |
 | `AutoDashboard` | `src/features/auto/` | 자동차 보험 메인 대시보드 |
@@ -467,6 +488,7 @@ Auto Section (1) ──── (N) Agent
 - [x] TOP 10 지점 테이블
 - [x] 지점 전체 테이블: 검색 input, 직영/지사/전체 필터 버튼, SortHead 정렬
 - [x] 지점 행 클릭 → BranchDetailPanel 슬라이드 패널
+- [x] AI 인사이트 카드 (자연어 단일 문단, Gemini 2.5 Flash Lite)
 
 #### GFP 지점별 실적 (GfpBranches.jsx)
 
@@ -490,6 +512,15 @@ Auto Section (1) ──── (N) Agent
 - [x] 부서별 보장분석 파이 차트
 - [x] TM 호전환 TOP 10 바 차트
 - [x] DB 운용 현황 요약 (배분 수치 + ProgressBar)
+- [x] 월별 추세 차트 (v2-redesign Stage 3)
+- [x] AI 인사이트 카드 (자연어 단일 문단, Gemini 2.5 Flash Lite)
+
+#### 리테일 사업부 메인 대시보드 (RetailDashboard.jsx)
+
+- [x] KPI 카드 (부서별 실적 요약)
+- [x] 부서별 현황 카드
+- [x] 월별 추세 차트 (v2-redesign Stage 4)
+- [x] AI 인사이트 카드 (자연어 단일 문단, Gemini 2.5 Flash Lite)
 
 #### 파일 업로드 (UploadView.jsx)
 
@@ -649,23 +680,28 @@ src/
 │   ├── Card.jsx
 │   ├── KPICard.jsx
 │   ├── SortHead.jsx
-│   └── ProgressBar.jsx
+│   ├── ProgressBar.jsx
+│   └── AiInsightCard.jsx          # AI 인사이트 (자연어 단일 문단, 스켈레톤, 새로고침)
+├── hooks/
+│   └── useAiInsight.js            # Gemini 2.5 Flash Lite API 호출 + 캐싱 + 순차 큐
 ├── features/
 │   ├── auth/
 │   │   ├── LoginPage.jsx          # 로그인 폼
 │   │   └── MyPage.jsx             # 마이페이지 + PasswordModal
 │   ├── dashboard/
-│   │   ├── Dashboard.jsx          # GFP 메인
+│   │   ├── Dashboard.jsx          # GFP 메인 (AI 인사이트 포함)
 │   │   ├── GfpBranches.jsx        # 지점별 실적
 │   │   ├── GfpPersonnel.jsx       # 인원 현황
-│   │   ├── GfpDbPage.jsx          # DB 운영현황
+│   │   ├── GfpDbPage.jsx          # DB 운영현황 (레거시)
+│   │   ├── GfpDb.jsx              # DB 운영현황 (v2-redesign 통합본)
 │   │   ├── BranchDetailPanel.jsx  # 지점 상세 패널
 │   │   └── GfpDbNeeds.jsx         # DB 필요수량
 │   ├── auto/
-│   │   ├── AutoDashboard.jsx      # 자동차 보험 메인
+│   │   ├── AutoDashboard.jsx      # 자동차 보험 메인 (월별 추세 차트 + AI 인사이트)
 │   │   └── AutoDetail.jsx         # 부서 상세
 │   ├── retail/
-│   │   └── (리테일 사업부 페이지)
+│   │   ├── RetailDashboard.jsx    # 리테일 사업부 메인 (월별 추세 차트 + AI 인사이트)
+│   │   └── RetailExecution.jsx    # 실행내역
 │   ├── upload/
 │   │   └── UploadView.jsx         # canUpload prop으로 권한 차단
 │   ├── history/
@@ -677,12 +713,14 @@ src/
 │   ├── auto_parser.js             # 자동차 보험 Excel 파서
 │   ├── retail_parser.js           # 리테일 사업부 Excel 파서
 │   ├── formatters.js              # fmtNum/fmtMan/fmtPct/fmtDate
-│   └── date_from_filename.js      # 파일명 날짜 추출
+│   ├── date_from_filename.js      # 파일명 날짜 추출
+│   ├── numbers.js                 # parseNum() — 숫자 파싱 공통 유틸
+│   └── report_types.js            # REPORT_TYPES 상수 (라벨, 색상 등)
 ├── theme.js                       # 디자인 토큰
 ├── db.js                          # Supabase API (Auth + CRUD + 프로필)
 ├── responsive.css                 # 반응형 미디어 쿼리
 ├── App.jsx                        # 라우팅 + 전역 상태 + Auth Gate
-└── Layout.jsx                     # LNB 네비게이션 + 계정 영역
+└── Layout.jsx                     # LNB 네비게이션 + 계정 영역 (카테고리 구분선 포함)
 ```
 
 ### 11.2 신규 기능 추가 순서 (참고)
@@ -702,3 +740,4 @@ src/
 | 0.1 | 2026-04-29 | 역기획 초안 — 구현 완료 기준 소급 작성 | 개발팀 |
 | 0.2 | 2026-04-29 | FR-14 GfpDbNeeds 컴포넌트 추가, 데이터 모델 dbNeeds 섹션 추가 | 개발팀 |
 | 2.0.0 | 2026-05-12 | Supabase 클라우드 저장·Auth 인증 시스템 반영, 자동차 보험·리테일 사업부 섹션 분리, LoginPage/MyPage 추가, API 명세 전면 재작성, 날짜 비교 역선택 방지 설계 반영 | 개발팀 |
+| 2.1.0 | 2026-05-15 | AI 인사이트 카드 (AiInsightCard, useAiInsight) 추가, 월별 추세 차트 (자동차/리테일), GfpDb.jsx 통합, hooks/ 디렉터리, numbers.js·report_types.js 유틸 추가, LNB 카테고리 구분, v2-redesign 디자인시스템 통일 | 개발팀 |

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-const MODEL = 'gemini-2.5-flash-lite';
+const MODEL = 'gemini-2.0-flash-lite';
 const API_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
@@ -179,7 +179,6 @@ export function useAiInsight(type, data, cacheKey) {
           generationConfig: {
             temperature: 0.4,
             maxOutputTokens: 512,
-            thinkingConfig: { thinkingBudget: 0 },
           },
         },
         signal
