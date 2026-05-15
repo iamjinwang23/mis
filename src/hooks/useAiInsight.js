@@ -4,6 +4,23 @@ const MODEL = 'gemini-2.5-flash-lite';
 const API_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
+// 중괄호 깊이 추적으로 정확한 JSON 블록만 추출 (JSON 앞뒤 텍스트 무시)
+function extractJson(text) {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(text.slice(start, i + 1)); } catch { return null; }
+      }
+    }
+  }
+  return null;
+}
+
 // 대시보드별 순차 호출을 위한 전역 큐 (동시 3개 호출 방지)
 let callQueue = Promise.resolve();
 const TYPE_DELAY = { gfp: 0, auto: 4000, retail: 8000 };
@@ -183,14 +200,8 @@ export function useAiInsight(type, data, cacheKey) {
         throw new Error(reason ? `응답 없음 (${reason})` : '빈 응답');
       }
 
-      let parsed;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        const match = text.match(/\{[\s\S]*\}/);
-        if (!match) throw new Error('응답 파싱 실패 — 새로고침을 눌러 재시도하세요');
-        parsed = JSON.parse(match[0]);
-      }
+      const parsed = extractJson(text);
+      if (!parsed) throw new Error('응답 파싱 실패 — 새로고침을 눌러 재시도하세요');
 
       setInsight(parsed);
       sessionStorage.setItem(storageKey, JSON.stringify(parsed));
