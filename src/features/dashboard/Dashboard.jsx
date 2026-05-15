@@ -10,6 +10,8 @@ import KPICard from '../../components/KPICard.jsx';
 import ProgressBar from '../../components/ProgressBar.jsx';
 import BranchDetailPanel from './BranchDetailPanel.jsx';
 import SortHead from '../../components/SortHead.jsx';
+import AiInsightCard from '../../components/AiInsightCard.jsx';
+import { useAiInsight } from '../../hooks/useAiInsight.js';
 
 function delta(curr, prev, isRate = false) {
   if (prev == null || curr == null) return undefined;
@@ -33,6 +35,12 @@ export default function Dashboard({ data, prevData }) {
   const direct = summary.direct || {};
   const branch = summary.branch || {};
   const pt = prevData?.summary?.total || null;
+
+  const { insight, loading: aiLoading, error: aiError, refresh: aiRefresh } = useAiInsight(
+    'gfp',
+    { total, direct, branch, branches },
+    `${reportDate}`
+  );
 
   const [sortKey, setSortKey] = useState('achieve');
   const [sortDir, setSortDir] = useState('desc');
@@ -116,7 +124,7 @@ export default function Dashboard({ data, prevData }) {
   return (
     <div className="page-wrap">
       {/* Page header */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>
           GFP 총괄 대시보드
         </h1>
@@ -124,6 +132,14 @@ export default function Dashboard({ data, prevData }) {
           보고일 {fmtDate(reportDate)} · 기준일 {fmtDate(baseDate)}
         </p>
       </div>
+
+      <AiInsightCard
+        insight={insight}
+        loading={aiLoading}
+        error={aiError}
+        onRefresh={aiRefresh}
+        reportDate={fmtDate(reportDate)}
+      />
 
       <div>
 

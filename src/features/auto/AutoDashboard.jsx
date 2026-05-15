@@ -11,6 +11,8 @@ import { fmtNum, fmtDate } from '../../utils/formatters.js';
 import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
 import ProgressBar from '../../components/ProgressBar.jsx';
+import AiInsightCard from '../../components/AiInsightCard.jsx';
+import { useAiInsight } from '../../hooks/useAiInsight.js';
 
 function SectionCard({ data, color, icon: Icon, onClick }) {
   if (!data) return null;
@@ -68,6 +70,16 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
   const s = sections || {};
   const ps = prevReport?.data?.summary || null;
 
+  const totalCoverageForAi = Object.values(s).reduce((acc, sec) => acc + (sec?.coverage || 0), 0);
+  const totalSuccessForAi  = Object.values(s).reduce((acc, sec) => acc + (sec?.success1st || 0), 0);
+  const totalAssignedForAi = Object.values(s).reduce((acc, sec) => acc + (sec?.assigned || 0), 0);
+
+  const { insight: aiInsight, loading: aiLoading, error: aiError, refresh: aiRefresh } = useAiInsight(
+    'auto',
+    { summary, sections: s, totalCoverage: totalCoverageForAi, totalSuccess: totalSuccessForAi, totalAssigned: totalAssignedForAi },
+    `${reportDate}`
+  );
+
   const sectionDefs = [
     { key: 'tmHoJeon', label: 'TM 호전환', icon: Phone, color: T.accent, nav: 'tm' },
     { key: 'contract', label: '계약실', icon: FileText, color: T.blue, nav: 'contract' },
@@ -112,7 +124,7 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
   return (
     <div className="page-wrap">
       {/* Page header */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>
@@ -124,6 +136,14 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
           </div>
         </div>
       </div>
+
+      <AiInsightCard
+        insight={aiInsight}
+        loading={aiLoading}
+        error={aiError}
+        onRefresh={aiRefresh}
+        reportDate={fmtDate(reportDate)}
+      />
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>

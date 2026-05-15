@@ -10,6 +10,8 @@ import { fmtNum, fmtPct, fmtDate } from '../../utils/formatters.js';
 import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
 import ProgressBar from '../../components/ProgressBar.jsx';
+import AiInsightCard from '../../components/AiInsightCard.jsx';
+import { useAiInsight } from '../../hooks/useAiInsight.js';
 
 const RETAIL_COLOR = T.purple;
 
@@ -23,6 +25,12 @@ const PRODUCTS = [
 
 export default function RetailDashboard({ report }) {
   const { reportDate, summary, companies, totals } = report.data;
+
+  const { insight: aiInsight, loading: aiLoading, error: aiError, refresh: aiRefresh } = useAiInsight(
+    'retail',
+    { summary, companies, totals },
+    `${reportDate}`
+  );
 
   // 제품별 누계 차트 데이터
   const productChart = useMemo(() =>
@@ -54,7 +62,7 @@ export default function RetailDashboard({ report }) {
   return (
     <div className="page-wrap">
       {/* 페이지 헤더 */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>
           리테일 사업부 대시보드
         </h1>
@@ -64,6 +72,14 @@ export default function RetailDashboard({ report }) {
           {report.filename && ` · ${report.filename}`}
         </p>
       </div>
+
+      <AiInsightCard
+        insight={aiInsight}
+        loading={aiLoading}
+        error={aiError}
+        onRefresh={aiRefresh}
+        reportDate={fmtDate(reportDate)}
+      />
 
       {/* KPI 카드 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
