@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'gemini-2.5-flash-lite';
 const API_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
