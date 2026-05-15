@@ -136,7 +136,7 @@ export function useAiInsight(type, data, cacheKey) {
   const [error, setError]      = useState(null);
   const abortRef = useRef(null);
 
-  const storageKey = `ai_insight_${type}_${cacheKey}`;
+  const storageKey = `ai_insight_v2_${type}_${cacheKey}`;
 
   const fetchInsight = async (skipCache = false) => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
