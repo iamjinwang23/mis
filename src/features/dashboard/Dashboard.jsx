@@ -9,6 +9,7 @@ import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
 import ProgressBar from '../../components/ProgressBar.jsx';
 import { isHoliday } from '../../utils/koreaHolidays.js';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // ── 아코디언 상세 (지점 클릭 시 인라인 표시) ───────────────────────
 function BranchAccordion({ branch }) {
@@ -168,106 +169,155 @@ function ChannelModal({ channelType, branches, onClose }) {
   );
 }
 
-// ── 일별 실적 달력 ───────────────────────────────────────────────
-function DailyCalendar({ allReports, year, month, field }) {
+// ── 일별 실적 꺾은선 그래프 ───────────────────────────────────────────
+function DailyLineChart({ allReports, year, month, field }) {
   const dateMap = useMemo(() => {
     const map = {};
     (allReports || []).forEach(r => {
       const d = r.reportDate ? new Date(r.reportDate) : null;
       if (!d || isNaN(d) || d.getFullYear() !== year || d.getMonth() !== month) return;
-      const val = r.data?.summary?.[field]?.today;
-      if (val != null) map[d.getDate()] = val;
+      map[d.getDate()] = {
+        total: r.data?.summary?.total?.today || 0,
+        direct: r.data?.summary?.direct?.today || 0,
+        branch: r.data?.summary?.branch?.today || 0,
+      };
     });
     return map;
-  }, [allReports, year, month, field]);
-
-  const cells = useMemo(() => {
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDow = new Date(year, month, 1).getDay();
-    const prevMonthDays = new Date(year, month, 0).getDate();
-    const prevMonth = month === 0 ? 11 : month - 1;
-    const prevYear  = month === 0 ? year - 1 : year;
-    const nextMonth = month === 11 ? 0 : month + 1;
-    const nextYear  = month === 11 ? year + 1 : year;
-    const arr = [];
-    for (let i = 0; i < firstDow; i++)
-      arr.push({ day: prevMonthDays - (firstDow - 1 - i), isCurrentMonth: false, actualYear: prevYear, actualMonth: prevMonth });
-    for (let d = 1; d <= daysInMonth; d++)
-      arr.push({ day: d, isCurrentMonth: true, actualYear: year, actualMonth: month });
-    let nextDay = 1;
-    while (arr.length % 7 !== 0)
-      arr.push({ day: nextDay++, isCurrentMonth: false, actualYear: nextYear, actualMonth: nextMonth });
-    return arr;
-  }, [year, month]);
-
-  const weeks = useMemo(() => {
-    const w = [];
-    for (let i = 0; i < cells.length; i += 7) w.push(cells.slice(i, i + 7));
-    return w;
-  }, [cells]);
+  }, [allReports, year, month]);
 
   const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
+  const chartData = useMemo(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const data = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const vals = dateMap[d] || { total: 0, direct: 0, branch: 0 };
+      const holName = isHoliday(year, month, d);
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayOfWeek = DOW[new Date(year, month, d).getDay()];
+      data.push({
+        day: d,
+        name: `${d}일`,
+        total: vals.total,
+        direct: vals.direct,
+        branch: vals.branch,
+        holiday: holName,
+        dateStr,
+        dayOfWeek,
+      });
+    }
+    return data;
+  }, [year, month, dateMap]);
+
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
-        <thead>
-          <tr>
-            {DOW.map((d, i) => (
-              <th key={d} style={{
-                padding: '8px 4px', textAlign: 'center', fontSize: 12, fontWeight: 700,
-                width: `${100/7}%`,
-                color: i === 0 || i === 6 ? T.red : T.textDim,
-                background: T.bg2,
-                border: `1px solid ${T.border}`,
-              }}>{d}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {weeks.map((week, wi) => (
-            <tr key={wi}>
-              {week.map((cell, di) => {
-                const isWeekend = di === 0 || di === 6;
-                const val = cell.isCurrentMonth ? dateMap[cell.day] : undefined;
-                const hasData = val != null && val > 0;
-                const bg = '#ffffff';
-                const holName = isHoliday(cell.actualYear, cell.actualMonth, cell.day);
-                const isRed = isWeekend || !!holName;
-                const dateColor = !cell.isCurrentMonth
-                  ? T.textMute
-                  : isRed ? T.red : T.textDim;
-                return (
-                  <td key={di} title={holName || undefined} style={{
-                    border: `1px solid ${T.border}`,
-                    background: bg,
-                    position: 'relative',
-                    height: 66,
-                    verticalAlign: 'top',
-                    minWidth: 40,
-                  }}>
-                    <span style={{
-                      position: 'absolute', top: 5, left: 7,
-                      fontSize: 13, fontFamily: MONO_STACK,
-                      color: dateColor,
-                      fontWeight: cell.isCurrentMonth ? 600 : 400,
-                      opacity: cell.isCurrentMonth ? 1 : 0.45,
-                    }}>{cell.day}</span>
-                    {hasData && (
-                      <span style={{
-                        position: 'absolute', bottom: 5, right: 7,
-                        fontSize: 14, fontWeight: 700, fontFamily: MONO_STACK,
-                        color: T.accent,
-                        opacity: cell.isCurrentMonth ? 1 : 0.45,
-                      }}>{fmtMan(val)}</span>
+    <div style={{ width: '100%', height: 260 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData} margin={{ top: 10, right: 15, left: 5, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+          <XAxis
+            dataKey="day"
+            stroke={T.textDim}
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={v => `${v}일`}
+          />
+          <YAxis
+            stroke={T.textDim}
+            fontSize={11}
+            width={55}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={v => fmtMan(v)}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload || !payload.length) return null;
+              const data = payload[0].payload;
+              return (
+                <div style={{
+                  background: T.card,
+                  border: `1px solid ${T.border}`,
+                  padding: '10px 12px',
+                  borderRadius: RADIUS.sm,
+                  boxShadow: SHADOW?.deep || '0 2px 10px rgba(0,0,0,0.05)',
+                  fontSize: 13,
+                }}>
+                  <div style={{ fontWeight: 700, color: T.text, marginBottom: 6 }}>
+                    {data.dateStr} ({data.dayOfWeek})
+                    {data.holiday && (
+                      <span style={{ marginLeft: 6, color: T.red, fontSize: 11 }}>
+                        {data.holiday}
+                      </span>
                     )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  </div>
+                  {field === 'total' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ color: T.text, fontWeight: 600 }}>전체: {fmtMan(data.total)}</div>
+                      <div style={{ color: T.accent, fontWeight: 500 }}>직영: {fmtMan(data.direct)}</div>
+                      <div style={{ color: T.green, fontWeight: 500 }}>지사: {fmtMan(data.branch)}</div>
+                    </div>
+                  ) : (
+                    <div style={{ color: field === 'direct' ? T.accent : T.green, fontWeight: 600 }}>
+                      실적: {fmtMan(field === 'direct' ? data.direct : data.branch)}
+                    </div>
+                  )}
+                </div>
+              );
+            }}
+          />
+          {field === 'total' && (
+            <Legend
+              verticalAlign="top"
+              height={36}
+              iconType="circle"
+              iconSize={8}
+              wrapperStyle={{ fontSize: 12, fontWeight: 600 }}
+            />
+          )}
+          {field === 'total' ? (
+            <>
+              <Line
+                type="monotone"
+                dataKey="total"
+                name="전체"
+                stroke={T.text}
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                dot={{ r: 3, strokeWidth: 1, fill: T.card }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="direct"
+                name="직영"
+                stroke={T.accent}
+                strokeWidth={2}
+                dot={{ r: 3, strokeWidth: 1, fill: T.card }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="branch"
+                name="지사"
+                stroke={T.green}
+                strokeWidth={2}
+                dot={{ r: 3, strokeWidth: 1, fill: T.card }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+              />
+            </>
+          ) : (
+            <Line
+              type="monotone"
+              dataKey={field}
+              stroke={field === 'direct' ? T.accent : T.green}
+              strokeWidth={3}
+              dot={{ r: 4, strokeWidth: 1, fill: T.card }}
+              activeDot={{ r: 6, strokeWidth: 0 }}
+            />
+          )}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -464,7 +514,7 @@ export default function Dashboard({ data, prevData, allReports = [] }) {
             ))}
           </div>
         </div>
-        {/* 달력 */}
+        {/* 일별 추이 그래프 */}
         <div style={{ padding: '12px 20px 20px' }}>
           {allReports.filter(r => {
             const d = r.reportDate ? new Date(r.reportDate) : null;
@@ -474,7 +524,7 @@ export default function Dashboard({ data, prevData, allReports = [] }) {
               {calYear}년 {calMonth + 1}월 업로드된 보고서가 없습니다.
             </div>
           ) : (
-            <DailyCalendar allReports={allReports} year={calYear} month={calMonth} field={dailyTab} />
+            <DailyLineChart allReports={allReports} year={calYear} month={calMonth} field={dailyTab} />
           )}
         </div>
       </Card>

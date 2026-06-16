@@ -5,6 +5,7 @@ import { fmtNum, fmtDate } from '../../utils/formatters.js';
 import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
 import { isHoliday } from '../../utils/koreaHolidays.js';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -77,8 +78,8 @@ function DataRow({ label, indent, todayVal, mainVal, prevVal, salesVal, accentCo
   );
 }
 
-// ── 일별 달력 ────────────────────────────────────────────────────
-function DailyCalendar({ allReports, year, month }) {
+// ── 일별 계약 성공건수 꺾은선 그래프 ─────────────────────────────────────────
+function DailyLineChart({ allReports, year, month }) {
   const dateMap = useMemo(() => {
     const sorted = (allReports || [])
       .filter(r => {
@@ -100,89 +101,87 @@ function DailyCalendar({ allReports, year, month }) {
     return m;
   }, [allReports, year, month]);
 
-  const cells = useMemo(() => {
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDow = new Date(year, month, 1).getDay();
-    const prevMonthDays = new Date(year, month, 0).getDate();
-    const prevMonth = month === 0 ? 11 : month - 1;
-    const prevYear  = month === 0 ? year - 1 : year;
-    const nextMonth = month === 11 ? 0 : month + 1;
-    const nextYear  = month === 11 ? year + 1 : year;
-    const arr = [];
-    for (let i = 0; i < firstDow; i++)
-      arr.push({ day: prevMonthDays - (firstDow - 1 - i), isCurrentMonth: false, actualYear: prevYear, actualMonth: prevMonth });
-    for (let d = 1; d <= daysInMonth; d++)
-      arr.push({ day: d, isCurrentMonth: true, actualYear: year, actualMonth: month });
-    let nextDay = 1;
-    while (arr.length % 7 !== 0)
-      arr.push({ day: nextDay++, isCurrentMonth: false, actualYear: nextYear, actualMonth: nextMonth });
-    return arr;
-  }, [year, month]);
+  const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
-  const weeks = useMemo(() => {
-    const w = [];
-    for (let i = 0; i < cells.length; i += 7) w.push(cells.slice(i, i + 7));
-    return w;
-  }, [cells]);
+  const chartData = useMemo(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const data = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const val = dateMap[d] || 0;
+      const holName = isHoliday(year, month, d);
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayOfWeek = DOW[new Date(year, month, d).getDay()];
+      data.push({
+        day: d,
+        name: `${d}일`,
+        value: val,
+        holiday: holName,
+        dateStr,
+        dayOfWeek,
+      });
+    }
+    return data;
+  }, [year, month, dateMap]);
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
-        <thead>
-          <tr>
-            {DOW.map((d, i) => (
-              <th key={d} style={{
-                padding: '8px 4px', textAlign: 'center', fontSize: 12, fontWeight: 700,
-                width: `${100 / 7}%`,
-                color: i === 0 || i === 6 ? T.red : T.textDim,
-                background: T.bg2, border: `1px solid ${T.border}`,
-              }}>{d}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {weeks.map((week, wi) => (
-            <tr key={wi}>
-              {week.map((cell, di) => {
-                const isWeekend = di === 0 || di === 6;
-                const val = cell.isCurrentMonth ? dateMap[cell.day] : undefined;
-                const hasData = val != null && val > 0;
-                const holName = isHoliday(cell.actualYear, cell.actualMonth, cell.day);
-                const isRed = isWeekend || !!holName;
-                const dateColor = !cell.isCurrentMonth
-                  ? T.textMute
-                  : isRed ? T.red : T.textDim;
-                return (
-                  <td key={di} title={holName || undefined} style={{
-                    border: `1px solid ${T.border}`,
-                    background: '#ffffff',
-                    position: 'relative',
-                    height: 66,
-                    verticalAlign: 'top',
-                    minWidth: 40,
-                  }}>
-                    <span style={{
-                      position: 'absolute', top: 5, left: 7,
-                      fontSize: 13, fontFamily: MONO_STACK,
-                      color: dateColor,
-                      fontWeight: cell.isCurrentMonth ? 600 : 400,
-                      opacity: cell.isCurrentMonth ? 1 : 0.45,
-                    }}>{cell.day}</span>
-                    {hasData && (
-                      <span style={{
-                        position: 'absolute', bottom: 5, right: 7,
-                        fontSize: 14, fontWeight: 700, fontFamily: MONO_STACK,
-                        color: T.accent,
-                        opacity: cell.isCurrentMonth ? 1 : 0.45,
-                      }}>{fmtNum(val)}</span>
+    <div style={{ width: '100%', height: 260 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData} margin={{ top: 10, right: 15, left: 5, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+          <XAxis
+            dataKey="day"
+            stroke={T.textDim}
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={v => `${v}일`}
+          />
+          <YAxis
+            stroke={T.textDim}
+            fontSize={11}
+            width={40}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={v => fmtNum(v)}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload || !payload.length) return null;
+              const data = payload[0].payload;
+              return (
+                <div style={{
+                  background: T.card,
+                  border: `1px solid ${T.border}`,
+                  padding: '10px 12px',
+                  borderRadius: RADIUS.sm,
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+                  fontSize: 13,
+                }}>
+                  <div style={{ fontWeight: 700, color: T.text, marginBottom: 4 }}>
+                    {data.dateStr} ({data.dayOfWeek})
+                    {data.holiday && (
+                      <span style={{ marginLeft: 6, color: T.red, fontSize: 11 }}>
+                        {data.holiday}
+                      </span>
                     )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  </div>
+                  <div style={{ color: T.purple, fontWeight: 600 }}>
+                    성공건수: {fmtNum(data.value)}건
+                  </div>
+                </div>
+              );
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={T.purple}
+            strokeWidth={3}
+            dot={{ r: 4, strokeWidth: 1, fill: T.card }}
+            activeDot={{ r: 6, strokeWidth: 0 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -362,7 +361,7 @@ export default function AutoDashboard({ report, prevReport, allReports }) {
         </div>
       </Card>
 
-      {/* 당월 계약 추이 달력 */}
+      {/* 당월 계약 추이 그래프 */}
       <Card style={{ overflow: 'hidden' }}>
         <div style={{ padding: '30px 20px 14px', borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: T.textMute }}>1차호전환 성공건 추이</span>
@@ -381,7 +380,7 @@ export default function AutoDashboard({ report, prevReport, allReports }) {
               {calYear}년 {calMonth + 1}월 업로드된 보고서가 없습니다.
             </div>
           ) : (
-            <DailyCalendar allReports={allReports} year={calYear} month={calMonth} />
+            <DailyLineChart allReports={allReports} year={calYear} month={calMonth} />
           )}
         </div>
       </Card>
