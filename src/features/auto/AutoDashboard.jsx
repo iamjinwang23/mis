@@ -4,8 +4,6 @@ import { T, MONO_STACK, RADIUS } from '../../theme.js';
 import { fmtNum, fmtDate } from '../../utils/formatters.js';
 import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
-import AiInsightCard from '../../components/AiInsightCard.jsx';
-import { useAiInsight } from '../../hooks/useAiInsight.js';
 import { isHoliday } from '../../utils/koreaHolidays.js';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -235,11 +233,6 @@ export default function AutoDashboard({ report, prevReport, allReports }) {
   const prevTotalCoverage      = Object.values(prevSections).reduce((a, sec) => a + (sec?.coverage      || 0), 0);
   const prevTotalDriverConnect = Object.values(prevSections).reduce((a, sec) => a + (sec?.driverConnect || 0), 0);
 
-  const { insight: aiInsight, loading: aiLoading, error: aiError, refresh: aiRefresh } = useAiInsight(
-    'auto',
-    { summary, sections: s, totalCoverage, totalSuccess, totalAssigned },
-    `${reportDate}`
-  );
 
   const hasCalData = (allReports || []).some(r => {
     const d = r.reportDate ? new Date(r.reportDate) : null;
@@ -255,14 +248,6 @@ export default function AutoDashboard({ report, prevReport, allReports }) {
           {fmtDate(reportDate)} 기준 · {report.filename}
         </p>
       </div>
-
-      <AiInsightCard
-        insight={aiInsight}
-        loading={aiLoading}
-        error={aiError}
-        onRefresh={aiRefresh}
-        reportDate={fmtDate(reportDate)}
-      />
 
       {/* KPI 카드 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>

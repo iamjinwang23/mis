@@ -8,8 +8,6 @@ import { fmtNum, fmtPct, fmtMan, fmtDate } from '../../utils/formatters.js';
 import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
 import ProgressBar from '../../components/ProgressBar.jsx';
-import AiInsightCard from '../../components/AiInsightCard.jsx';
-import { useAiInsight } from '../../hooks/useAiInsight.js';
 import { isHoliday } from '../../utils/koreaHolidays.js';
 
 // ── 아코디언 상세 (지점 클릭 시 인라인 표시) ───────────────────────
@@ -308,9 +306,6 @@ export default function Dashboard({ data, prevData, allReports = [] }) {
   const pmDirect = prevMonthReport?.data?.summary?.direct || null;
   const pmBranch = prevMonthReport?.data?.summary?.branch || null;
 
-  const { insight, loading: aiLoading, error: aiError, refresh: aiRefresh } = useAiInsight(
-    'gfp', { total, direct, branch, branches }, `${reportDate}`
-  );
 
   const [channelPopup, setChannelPopup] = useState(null);
   const [dailyTab, setDailyTab] = useState('total');
@@ -375,8 +370,6 @@ export default function Dashboard({ data, prevData, allReports = [] }) {
         <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>GFP 총괄 대시보드</h1>
         <p style={{ fontSize: 18, color: T.textDim, fontFamily: MONO_STACK }}>보고일 {fmtDate(reportDate)} · 작성일 {fmtDate(baseDate)}</p>
       </div>
-
-      <AiInsightCard insight={insight} loading={aiLoading} error={aiError} onRefresh={aiRefresh} reportDate={fmtDate(reportDate)} />
 
       {/* ─── KPI 카드 ────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
