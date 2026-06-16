@@ -227,6 +227,7 @@ export default function App() {
       setAutoReports(auto);
       setRetailReports(retail);
       if (gfp.length && !selectedGfpId) setSelectedGfpId(gfp[0].id);
+      if (gfp.length >= 2 && !selectedGfpIdFrom) setSelectedGfpIdFrom(gfp[1].id);
       if (auto.length && !selectedAutoId) setSelectedAutoId(auto[0].id);
       if (retail.length && !selectedRetailId) setSelectedRetailId(retail[0].id);
     } catch (err) {
@@ -340,7 +341,7 @@ export default function App() {
       if (!currentGfp) {
         return <EmptyState section="gfp" onUpload={() => setNav({ section: 'shared', page: 'upload' })} />;
       }
-      if (page === 'dashboard') return <Dashboard data={currentGfp.data} prevData={prevGfp?.data || null} />;
+      if (page === 'dashboard') return <Dashboard data={currentGfp.data} prevData={prevGfp?.data || null} allReports={gfpReports} />;
       if (page === 'branches') return <GfpBranches report={currentGfp} />;
       if (page === 'personnel') return <GfpPersonnel report={currentGfp} />;
       if (page === 'db') return <GfpDb report={currentGfp} />;
@@ -361,7 +362,7 @@ export default function App() {
         return <EmptyState section="auto" onUpload={() => setNav({ section: 'shared', page: 'upload' })} />;
       }
       if (page === 'dashboard') {
-        return <AutoDashboard report={currentAuto} prevReport={prevAuto} onNavigate={(p) => setNav({ section: 'auto', page: p })} />;
+        return <AutoDashboard report={currentAuto} prevReport={prevAuto} allReports={autoReports} onNavigate={(p) => setNav({ section: 'auto', page: p })} />;
       }
       if (['tm', 'contract', 'dealer', 'permission'].includes(page)) {
         return <AutoDetail page={page} report={currentAuto} />;

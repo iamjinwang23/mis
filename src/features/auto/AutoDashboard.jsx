@@ -1,140 +1,259 @@
-import { useMemo } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts';
-import {
-  Phone, FileText, Truck, Lock, Users, Database,
-  TrendingUp, Activity, Award, Target,
-} from 'lucide-react';
-import { T, FONT_STACK, MONO_STACK, RADIUS, SHADOW } from '../../theme.js';
+import { useState, useMemo } from 'react';
+import { Users, Database, TrendingUp, Activity, Award, Target } from 'lucide-react';
+import { T, MONO_STACK, RADIUS } from '../../theme.js';
 import { fmtNum, fmtDate } from '../../utils/formatters.js';
 import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
-import ProgressBar from '../../components/ProgressBar.jsx';
 import AiInsightCard from '../../components/AiInsightCard.jsx';
 import { useAiInsight } from '../../hooks/useAiInsight.js';
+import { isHoliday } from '../../utils/koreaHolidays.js';
 
-function SectionCard({ data, color, icon: Icon, onClick }) {
-  if (!data) return null;
-  const activeAgents = data.agents?.filter(a => a.status === '재직' || a.status === '주말').length || 0;
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+const SECTION_DEFS = [
+  { key: 'tmHoJeon',     label: 'TM 호전환',   mainField: 'success1st' },
+  { key: 'contract',     label: '계약실',       mainField: 'success1st' },
+  { key: 'dealerNew',    label: '딜러 신규실',  mainField: 'success1st' },
+  { key: 'dealerRenewal',label: '딜러 갱신실',  mainField: 'success1st' },
+  { key: 'permission',   label: '퍼미션실',     mainField: 'success1st' },
+];
+
+// ── 스타일 헬퍼 ─────────────────────────────────────────────────
+const TH = (align = 'center') => ({
+  padding: '10px 12px', textAlign: align, color: T.textDim,
+  fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+  whiteSpace: 'nowrap', background: T.bg2, borderBottom: `1px solid ${T.border}`,
+});
+const TD = (align = 'center', extra = {}) => ({
+  padding: '12px 12px', textAlign: align, fontFamily: MONO_STACK,
+  fontSize: 14, borderBottom: `1px solid ${T.border}`, ...extra,
+});
+
+const DASH = <span style={{ color: T.textMute }}>-</span>;
+
+function Num({ v, color, bold }) {
+  if (!v || v <= 0) return DASH;
+  return <span style={{ color: color || T.text, fontWeight: bold ? 700 : 400 }}>{fmtNum(v)}</span>;
+}
+
+// ── 그룹 헤더 행 ────────────────────────────────────────────────
+function GroupHeader({ label, color }) {
   return (
-    <div
-      onClick={onClick}
-      style={{
-        padding: 18, borderRadius: RADIUS.md,
-        background: T.card, border: `1px solid ${T.border}`,
-        boxShadow: SHADOW.card, cursor: 'pointer',
-        transition: 'border-color 0.2s, transform 0.15s',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = 'none'; }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: RADIUS.sm,
-          background: `${color}18`, color,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Icon size={16} />
-        </div>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{data.label}</div>
-          <div style={{ fontSize: 13, color: T.textMute, fontFamily: MONO_STACK }}>
-            재직 {activeAgents}명 · 관리자 {data.manager || '-'}
-          </div>
-        </div>
-      </div>
+    <tr style={{ background: `${color}0a` }}>
+      <td colSpan={9} style={{
+        padding: '7px 14px', fontSize: 12, fontWeight: 700, color,
+        letterSpacing: '0.05em', textTransform: 'uppercase',
+        borderBottom: `1px solid ${T.border}`,
+      }}>
+        {label}
+      </td>
+    </tr>
+  );
+}
 
-      <div className="grid-2col" style={{ gap: 10 }}>
-        {[
-          { label: '갱신 분배', value: fmtNum(data.assigned), show: data.assigned > 0 },
-          { label: '신규 DB', value: fmtNum(data.newDb), show: data.newDb > 0 },
-          { label: '보장 분석', value: fmtNum(data.coverage), show: data.coverage > 0 },
-          { label: '1차 호전환', value: fmtNum(data.success1st), show: data.success1st > 0 },
-          { label: '운전자 연결', value: fmtNum(data.driverConnect), show: data.driverConnect > 0 },
-          { label: '성공률', value: `${(data.successRate * 100).toFixed(1)}%`, show: data.successRate > 0 },
-        ].filter(i => i.show).slice(0, 4).map(item => (
-          <div key={item.label}>
-            <div style={{ fontSize: 13, color: T.textMute, marginBottom: 2 }}>{item.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: MONO_STACK, color }}>{item.value}</div>
-          </div>
-        ))}
-      </div>
+// ── 데이터 행 ────────────────────────────────────────────────────
+function DataRow({ label, indent, todayVal, mainVal, prevVal, salesVal, accentColor }) {
+  return (
+    <tr
+      style={{ borderBottom: `1px solid ${T.border}` }}
+      onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+    >
+      <td style={{ ...TD('left'), paddingLeft: indent ? 24 : 14, color: indent ? T.textDim : T.text, fontWeight: indent ? 400 : 700 }}>
+        {indent && <span style={{ fontSize: 11, color: T.textMute, marginRight: 4 }}>└</span>}
+        {label}
+      </td>
+      <td style={TD()}>{todayVal !== undefined ? <Num v={todayVal} color={T.accent} /> : DASH}</td>
+      <td style={TD()}>
+        <Num v={mainVal} color={!indent ? accentColor : undefined} bold={!indent} />
+      </td>
+      <td style={TD()}>{DASH}</td>
+      <td style={TD()}>{DASH}</td>
+      <td style={TD()}>{DASH}</td>
+      <td style={TD()}><Num v={mainVal} /></td>
+      <td style={TD()}><Num v={prevVal} color={T.textDim} /></td>
+      <td style={TD()}>
+        {salesVal !== undefined ? <Num v={salesVal} /> : DASH}
+      </td>
+    </tr>
+  );
+}
+
+// ── 일별 달력 ────────────────────────────────────────────────────
+function DailyCalendar({ allReports, year, month }) {
+  const dateMap = useMemo(() => {
+    const sorted = (allReports || [])
+      .filter(r => {
+        const d = r.reportDate ? new Date(r.reportDate) : null;
+        return d && !isNaN(d);
+      })
+      .sort((a, b) => new Date(a.reportDate) - new Date(b.reportDate));
+
+    const m = {};
+    sorted.forEach((r, i) => {
+      const d = new Date(r.reportDate);
+      if (d.getFullYear() !== year || d.getMonth() !== month) return;
+      const currVal = r.data?.summary?.success1st || 0;
+      const prev = i > 0 ? sorted[i - 1] : null;
+      const prevVal = prev?.data?.summary?.success1st || 0;
+      const daily = prev ? Math.max(0, currVal - prevVal) : currVal;
+      if (daily > 0) m[d.getDate()] = daily;
+    });
+    return m;
+  }, [allReports, year, month]);
+
+  const cells = useMemo(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDow = new Date(year, month, 1).getDay();
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear  = month === 0 ? year - 1 : year;
+    const nextMonth = month === 11 ? 0 : month + 1;
+    const nextYear  = month === 11 ? year + 1 : year;
+    const arr = [];
+    for (let i = 0; i < firstDow; i++)
+      arr.push({ day: prevMonthDays - (firstDow - 1 - i), isCurrentMonth: false, actualYear: prevYear, actualMonth: prevMonth });
+    for (let d = 1; d <= daysInMonth; d++)
+      arr.push({ day: d, isCurrentMonth: true, actualYear: year, actualMonth: month });
+    let nextDay = 1;
+    while (arr.length % 7 !== 0)
+      arr.push({ day: nextDay++, isCurrentMonth: false, actualYear: nextYear, actualMonth: nextMonth });
+    return arr;
+  }, [year, month]);
+
+  const weeks = useMemo(() => {
+    const w = [];
+    for (let i = 0; i < cells.length; i += 7) w.push(cells.slice(i, i + 7));
+    return w;
+  }, [cells]);
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
+        <thead>
+          <tr>
+            {DOW.map((d, i) => (
+              <th key={d} style={{
+                padding: '8px 4px', textAlign: 'center', fontSize: 12, fontWeight: 700,
+                width: `${100 / 7}%`,
+                color: i === 0 || i === 6 ? T.red : T.textDim,
+                background: T.bg2, border: `1px solid ${T.border}`,
+              }}>{d}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.map((week, wi) => (
+            <tr key={wi}>
+              {week.map((cell, di) => {
+                const isWeekend = di === 0 || di === 6;
+                const val = cell.isCurrentMonth ? dateMap[cell.day] : undefined;
+                const hasData = val != null && val > 0;
+                const holName = isHoliday(cell.actualYear, cell.actualMonth, cell.day);
+                const isRed = isWeekend || !!holName;
+                const dateColor = !cell.isCurrentMonth
+                  ? T.textMute
+                  : isRed ? T.red : T.textDim;
+                return (
+                  <td key={di} title={holName || undefined} style={{
+                    border: `1px solid ${T.border}`,
+                    background: '#ffffff',
+                    position: 'relative',
+                    height: 66,
+                    verticalAlign: 'top',
+                    minWidth: 40,
+                  }}>
+                    <span style={{
+                      position: 'absolute', top: 5, left: 7,
+                      fontSize: 13, fontFamily: MONO_STACK,
+                      color: dateColor,
+                      fontWeight: cell.isCurrentMonth ? 600 : 400,
+                      opacity: cell.isCurrentMonth ? 1 : 0.45,
+                    }}>{cell.day}</span>
+                    {hasData && (
+                      <span style={{
+                        position: 'absolute', bottom: 5, right: 7,
+                        fontSize: 14, fontWeight: 700, fontFamily: MONO_STACK,
+                        color: T.accent,
+                        opacity: cell.isCurrentMonth ? 1 : 0.45,
+                      }}>{fmtNum(val)}</span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-export default function AutoDashboard({ report, prevReport, onNavigate }) {
+// ── 메인 ─────────────────────────────────────────────────────────
+export default function AutoDashboard({ report, prevReport, allReports }) {
   const { summary, sections, monthlyTrend } = report.data;
   const reportDate = report.reportDate;
   const s = sections || {};
   const ps = prevReport?.data?.summary || null;
 
-  const totalCoverageForAi = Object.values(s).reduce((acc, sec) => acc + (sec?.coverage || 0), 0);
-  const totalSuccessForAi  = Object.values(s).reduce((acc, sec) => acc + (sec?.success1st || 0), 0);
-  const totalAssignedForAi = Object.values(s).reduce((acc, sec) => acc + (sec?.assigned || 0), 0);
+  const initDate = reportDate instanceof Date ? reportDate : new Date(reportDate || Date.now());
+  const [calYear,  setCalYear]  = useState(initDate.getFullYear());
+  const [calMonth, setCalMonth] = useState(initDate.getMonth());
+
+  const moveMonth = (delta) => {
+    const d = new Date(calYear, calMonth + delta, 1);
+    setCalYear(d.getFullYear());
+    setCalMonth(d.getMonth());
+  };
+
+  const prevMonthTrend   = monthlyTrend?.length >= 2 ? monthlyTrend[monthlyTrend.length - 2] : null;
+  const prevSummary      = prevMonthTrend?.summary  || {};
+  const prevSections     = prevMonthTrend?.sections || {};
+
+  // 전일 보고서 (같은 달, 현재 날짜 이전의 가장 최근 파일)
+  const prevDayReport = useMemo(() => {
+    if (!allReports?.length) return null;
+    const curr = new Date(reportDate);
+    return (allReports)
+      .filter(r => {
+        const d = new Date(r.reportDate);
+        return d < curr && d.getFullYear() === curr.getFullYear() && d.getMonth() === curr.getMonth();
+      })
+      .sort((a, b) => new Date(b.reportDate) - new Date(a.reportDate))[0] || null;
+  }, [allReports, reportDate]);
+
+  const prevDaySummary = prevDayReport?.data?.summary || null;
+  const prevDaySecs    = prevDayReport?.data?.sections || {};
+  const dayDiff = (curr, prev) =>
+    prevDaySummary !== null ? Math.max(0, (curr || 0) - (prev || 0)) : undefined;
+
+  const totalCoverage      = Object.values(s).reduce((a, sec) => a + (sec?.coverage      || 0), 0);
+  const totalDriverConnect = Object.values(s).reduce((a, sec) => a + (sec?.driverConnect || 0), 0);
+  const totalSuccess       = Object.values(s).reduce((a, sec) => a + (sec?.success1st    || 0), 0);
+  const totalAssigned      = Object.values(s).reduce((a, sec) => a + (sec?.assigned      || 0), 0);
+
+  const prevTotalCoverage      = Object.values(prevSections).reduce((a, sec) => a + (sec?.coverage      || 0), 0);
+  const prevTotalDriverConnect = Object.values(prevSections).reduce((a, sec) => a + (sec?.driverConnect || 0), 0);
 
   const { insight: aiInsight, loading: aiLoading, error: aiError, refresh: aiRefresh } = useAiInsight(
     'auto',
-    { summary, sections: s, totalCoverage: totalCoverageForAi, totalSuccess: totalSuccessForAi, totalAssigned: totalAssignedForAi },
+    { summary, sections: s, totalCoverage, totalSuccess, totalAssigned },
     `${reportDate}`
   );
 
-  const sectionDefs = [
-    { key: 'tmHoJeon', label: 'TM 호전환', icon: Phone, color: T.accent, nav: 'tm' },
-    { key: 'contract', label: '계약실', icon: FileText, color: T.blue, nav: 'contract' },
-    { key: 'dealerNew', label: '딜러 신규실', icon: Truck, color: T.green, nav: 'dealer' },
-    { key: 'dealerRenewal', label: '딜러 갱신실', icon: Truck, color: T.yellow, nav: 'dealer' },
-    { key: 'permission', label: '퍼미션실', icon: Lock, color: T.purple, nav: 'permission' },
-  ];
-
-  const coverageChart = useMemo(() => {
-    return sectionDefs
-      .filter(d => s[d.key]?.coverage > 0)
-      .map(d => ({ name: d.label, value: s[d.key].coverage, color: d.color }));
-  }, [s]);
-
-  const agentChart = useMemo(() => {
-    const tm = s.tmHoJeon?.agents || [];
-    return tm
-      .filter(a => a.status === '재직' || a.status === '주말')
-      .sort((a, b) => b.success1st - a.success1st)
-      .slice(0, 10)
-      .map(a => ({ name: a.name, 호전환: a.success1st, 보장분석: a.coverage }));
-  }, [s]);
-
-  const totalCoverage = Object.values(s).reduce((sum, sec) => sum + (sec?.coverage || 0), 0);
-  const totalSuccess = Object.values(s).reduce((sum, sec) => sum + (sec?.success1st || 0), 0);
-  const totalAssigned = Object.values(s).reduce((sum, sec) => sum + (sec?.assigned || 0), 0);
-
-  const trendData = useMemo(() => {
-    if (!monthlyTrend?.length) return [];
-    return monthlyTrend.map(m => {
-      const secs = Object.values(m.sections || {});
-      return {
-        name: m.label,
-        보장분석: secs.reduce((a, sec) => a + (sec?.coverage || 0), 0),
-        '1차호전환': secs.reduce((a, sec) => a + (sec?.success1st || 0), 0),
-        신규DB: m.summary?.newDb || 0,
-        갱신배분: m.summary?.assigned || 0,
-      };
-    });
-  }, [monthlyTrend]);
+  const hasCalData = (allReports || []).some(r => {
+    const d = r.reportDate ? new Date(r.reportDate) : null;
+    return d && d.getFullYear() === calYear && d.getMonth() === calMonth;
+  });
 
   return (
     <div className="page-wrap">
-      {/* Page header */}
+      {/* 페이지 헤더 */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>
-              자동차 보험 대시보드
-            </h1>
-            <p style={{ fontSize: 18, color: T.textDim, fontFamily: MONO_STACK }}>
-              {fmtDate(reportDate)} 기준 · {report.filename}
-            </p>
-          </div>
-        </div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>자동차 보험 대시보드</h1>
+        <p style={{ fontSize: 18, color: T.textDim, fontFamily: MONO_STACK }}>
+          {fmtDate(reportDate)} 기준 · {report.filename}
+        </p>
       </div>
 
       <AiInsightCard
@@ -145,225 +264,140 @@ export default function AutoDashboard({ report, prevReport, onNavigate }) {
         reportDate={fmtDate(reportDate)}
       />
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
-        <KPICard label="총 영업인원" value={fmtNum(summary.sales)} sub={`보조 ${fmtNum(summary.support)}명`} color={T.accent} icon={Users} delta={ps ? summary.sales - (ps.sales||0) : undefined} />
-        <KPICard label="갱신 DB 보유" value={fmtNum(summary.renewalDb)} sub={`배분 ${fmtNum(summary.assigned)}`} color={T.blue} icon={Database} delta={ps ? summary.renewalDb - (ps.renewalDb||0) : undefined} />
-        <KPICard label="신규 DB" value={fmtNum(summary.newDb)} sub="신규 유입" color={T.green} icon={TrendingUp} delta={ps ? summary.newDb - (ps.newDb||0) : undefined} />
-        <KPICard label="보장 분석 합계" value={fmtNum(totalCoverage)} sub="전 부서 합산" color={T.yellow} icon={Activity} delta={ps ? totalCoverage - Object.values(prevReport?.data?.sections||{}).reduce((s,sec)=>s+(sec?.coverage||0),0) : undefined} />
-        <KPICard label="1차 호전환" value={fmtNum(totalSuccess)} sub="전 부서 합산" color={T.purple} icon={Award} delta={ps ? totalSuccess - Object.values(prevReport?.data?.sections||{}).reduce((s,sec)=>s+(sec?.success1st||0),0) : undefined} />
-        <KPICard label="TM 성공률" value={`${(summary.successRate * 100).toFixed(1)}%`} sub={`TM 갱신성공 ${fmtNum(summary.tmRenewalSuccess)}`} color={summary.successRate >= 0.5 ? T.green : T.yellow} icon={Target} delta={ps ? (summary.successRate - (ps.successRate||0)) * 100 : undefined} />
+      {/* KPI 카드 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
+        <KPICard label="총 영업인원"   value={fmtNum(summary.sales)}   sub={`보조 ${fmtNum(summary.support)}명`}       color={T.accent} icon={Users}    delta={ps ? summary.sales   - (ps.sales   || 0) : undefined} />
+        <KPICard label="갱신 DB 보유" value={fmtNum(summary.renewalDb)} sub={`배분 ${fmtNum(summary.assigned)}`}       color={T.blue}   icon={Database} delta={ps ? summary.renewalDb - (ps.renewalDb||0) : undefined} />
+        <KPICard label="신규 DB"       value={fmtNum(summary.newDb)}   sub="신규 유입"                                 color={T.green}  icon={TrendingUp} delta={ps ? summary.newDb  - (ps.newDb  || 0) : undefined} />
+        <KPICard label="보장 분석 합계" value={fmtNum(totalCoverage)}   sub="전 부서 합산"                             color={T.yellow} icon={Activity}  delta={ps ? totalCoverage - Object.values(prevReport?.data?.sections || {}).reduce((a, sec) => a + (sec?.coverage  || 0), 0) : undefined} />
+        <KPICard label="1차 호전환"    value={fmtNum(totalSuccess)}     sub="전 부서 합산"                             color={T.purple} icon={Award}     delta={ps ? totalSuccess  - Object.values(prevReport?.data?.sections || {}).reduce((a, sec) => a + (sec?.success1st|| 0), 0) : undefined} />
+        <KPICard label="TM 성공률"     value={`${(summary.successRate * 100).toFixed(1)}%`} sub={`TM 갱신성공 ${fmtNum(summary.tmRenewalSuccess)}`} color={summary.successRate >= 0.5 ? T.green : T.yellow} icon={Target} delta={ps ? (summary.successRate - (ps.successRate || 0)) * 100 : undefined} />
       </div>
 
-      {/* 월별 추세 */}
-      {trendData.length >= 2 && (
-        <div style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>월별 추세</h2>
-          <p style={{ fontSize: 13, color: T.textMute, marginBottom: 16 }}>
-            {trendData.map(d => d.name).join(' → ')} · 전사 합산
-          </p>
-          <div className="grid-2col" style={{ gap: 16 }}>
-            {/* 보장분석 + 1차호전환 */}
-            <Card style={{ padding: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>보장분석 · 1차 호전환</div>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="name" stroke={T.textDim} fontSize={12} />
-                  <YAxis stroke={T.textDim} fontSize={11} width={36} />
-                  <Tooltip
-                    contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 13 }}
-                    formatter={v => fmtNum(v)}
-                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                  />
-                  <Bar dataKey="보장분석" fill={T.blue} radius={[3, 3, 0, 0]} maxBarSize={48} />
-                  <Bar dataKey="1차호전환" fill={T.accent} radius={[3, 3, 0, 0]} maxBarSize={48} />
-                </BarChart>
-              </ResponsiveContainer>
-              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 10 }}>
-                {[{ label: '보장분석', color: T.blue }, { label: '1차호전환', color: T.accent }].map(l => (
-                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: T.textDim }}>{l.label}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* 신규 DB + 갱신 배분 */}
-            <Card style={{ padding: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>신규 DB · 갱신 배분</div>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="name" stroke={T.textDim} fontSize={12} />
-                  <YAxis stroke={T.textDim} fontSize={11} width={40} />
-                  <Tooltip
-                    contentStyle={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, fontSize: 13 }}
-                    formatter={v => fmtNum(v)}
-                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                  />
-                  <Bar dataKey="신규DB" fill={T.green} radius={[3, 3, 0, 0]} maxBarSize={48} />
-                  <Bar dataKey="갱신배분" fill={T.yellow} radius={[3, 3, 0, 0]} maxBarSize={48} />
-                </BarChart>
-              </ResponsiveContainer>
-              <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 10 }}>
-                {[{ label: '신규DB', color: T.green }, { label: '갱신배분', color: T.yellow }].map(l => (
-                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: T.textDim }}>{l.label}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
+      {/* 실적 현황 테이블 */}
+      <Card style={{ overflow: 'hidden', marginBottom: 24 }}>
+        <div style={{ padding: '18px 20px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text }}>실적 현황</h3>
+          <p style={{ fontSize: 13, color: T.textMute }}>당월목표·예상실적은 원본 파일에 데이터 없음{prevDayReport ? '' : ' · 당일실적: 전일 파일 없음'}</p>
         </div>
-      )}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={{ ...TH('left'), width: '15%' }}>구분</th>
+                <th style={{ ...TH(), color: T.textMute }}>당일실적</th>
+                <th style={TH()}>당월누적</th>
+                <th style={{ ...TH(), color: T.textMute }}>당월목표</th>
+                <th style={{ ...TH(), color: T.textMute }}>목달도</th>
+                <th style={{ ...TH(), color: T.textMute }}>예상실적</th>
+                <th style={TH()}>당월건수</th>
+                <th style={TH()}>전월실적</th>
+                <th style={TH()}>인력현황</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* ── 자동차보험 ── */}
+              <GroupHeader label="자동차보험" color={T.accent} />
+              <DataRow
+                label="전체"
+                todayVal={dayDiff(summary.success1st, prevDaySummary?.success1st)}
+                mainVal={summary.success1st}
+                prevVal={prevSummary.success1st}
+                salesVal={summary.sales}
+                accentColor={T.accent}
+              />
+              {SECTION_DEFS.map(def => {
+                const sec     = s[def.key]                || {};
+                const prevSec = prevSections[def.key]     || {};
+                const pdSec   = prevDaySecs[def.key]      || {};
+                return (
+                  <DataRow
+                    key={def.key}
+                    label={def.label}
+                    indent
+                    todayVal={dayDiff(sec[def.mainField], pdSec[def.mainField])}
+                    mainVal={sec[def.mainField] || 0}
+                    prevVal={prevSec[def.mainField] || 0}
+                    salesVal={sec.sales}
+                  />
+                );
+              })}
 
-      {/* Section Cards Grid */}
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>부서별 현황</h2>
-        <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>클릭하면 상세 페이지로 이동합니다</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-          {sectionDefs.map(def => (
-            <SectionCard
-              key={def.key}
-              data={s[def.key]}
-              color={def.color}
-              icon={def.icon}
-              onClick={() => onNavigate(def.nav)}
-            />
-          ))}
+              {/* ── 보장분석 퍼미션 ── */}
+              <GroupHeader label="보장분석 퍼미션" color={T.yellow} />
+              <DataRow
+                label="합계"
+                todayVal={dayDiff(totalCoverage, Object.values(prevDaySecs).reduce((a, sec) => a + (sec?.coverage || 0), 0))}
+                mainVal={totalCoverage}
+                prevVal={prevTotalCoverage}
+                accentColor={T.yellow}
+              />
+              {SECTION_DEFS.filter(def => (s[def.key]?.coverage || 0) > 0).map(def => {
+                const sec     = s[def.key]            || {};
+                const prevSec = prevSections[def.key] || {};
+                const pdSec   = prevDaySecs[def.key]  || {};
+                return (
+                  <DataRow
+                    key={`cov-${def.key}`}
+                    label={def.label}
+                    indent
+                    todayVal={dayDiff(sec.coverage, pdSec.coverage)}
+                    mainVal={sec.coverage || 0}
+                    prevVal={prevSec.coverage || 0}
+                  />
+                );
+              })}
+
+              {/* ── 운전자보험 퍼미션 ── */}
+              <GroupHeader label="운전자보험 퍼미션" color={T.green} />
+              <DataRow
+                label="합계"
+                todayVal={dayDiff(totalDriverConnect, Object.values(prevDaySecs).reduce((a, sec) => a + (sec?.driverConnect || 0), 0))}
+                mainVal={totalDriverConnect}
+                prevVal={prevTotalDriverConnect}
+                accentColor={T.green}
+              />
+              {SECTION_DEFS.filter(def => (s[def.key]?.driverConnect || 0) > 0).map(def => {
+                const sec     = s[def.key]            || {};
+                const prevSec = prevSections[def.key] || {};
+                const pdSec   = prevDaySecs[def.key]  || {};
+                return (
+                  <DataRow
+                    key={`drv-${def.key}`}
+                    label={def.label}
+                    indent
+                    todayVal={dayDiff(sec.driverConnect, pdSec.driverConnect)}
+                    mainVal={sec.driverConnect || 0}
+                    prevVal={prevSec.driverConnect || 0}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </Card>
 
-      {/* Charts Row */}
-      <div className="grid-2col" style={{ gap: 16, marginBottom: 24 }}>
-        {/* Coverage table */}
-        <Card style={{ overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px 12px', borderBottom: `1px solid ${T.border}` }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 2, color: T.text }}>부서별 보장분석</h3>
-            <p style={{ fontSize: 15, color: T.textMute }}>전체 {fmtNum(totalCoverage)}건</p>
+      {/* 당월 계약 추이 달력 */}
+      <Card style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '30px 20px 14px', borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: T.textMute }}>1차호전환 성공건 추이</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button type="button" onClick={() => moveMonth(-1)} style={{ padding: '3px 8px', borderRadius: RADIUS.xs, background: T.bg2, border: `1px solid ${T.border}`, color: T.textDim, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>‹</button>
+            <span style={{ fontSize: 17, fontWeight: 700, color: T.text, fontFamily: MONO_STACK, minWidth: 80, textAlign: 'center' }}>
+              {calYear}. {calMonth + 1}
+            </span>
+            <button type="button" onClick={() => moveMonth(1)} style={{ padding: '3px 8px', borderRadius: RADIUS.xs, background: T.bg2, border: `1px solid ${T.border}`, color: T.textDim, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>›</button>
           </div>
-          {coverageChart.length > 0 ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
-                  {['부서', '건수', '비율'].map((h, i) => (
-                    <th key={h} style={{
-                      padding: '9px 16px', textAlign: i >= 1 ? 'right' : 'left',
-                      color: T.textDim, fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...coverageChart].sort((a, b) => b.value - a.value).map((entry, i) => {
-                  const pct = totalCoverage > 0 ? (entry.value / totalCoverage * 100) : 0;
-                  return (
-                    <tr key={entry.name} style={{ borderBottom: `1px solid ${T.border}` }}
-                      onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <td style={{ padding: '10px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: entry.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{entry.name}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, fontWeight: 700, color: entry.color }}>
-                        {fmtNum(entry.value)}
-                      </td>
-                      <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                          <div style={{ width: 60, height: 4, borderRadius: 2, background: T.bg2, overflow: 'hidden' }}>
-                            <div style={{ width: `${pct}%`, height: '100%', background: entry.color, borderRadius: 2 }} />
-                          </div>
-                          <span style={{ fontSize: 15, fontFamily: MONO_STACK, fontWeight: 700, color: entry.color, minWidth: 40, textAlign: 'right' }}>
-                            {pct.toFixed(0)}%
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div />
+        </div>
+        <div style={{ padding: '12px 20px 20px' }}>
+          {!hasCalData ? (
+            <div style={{ padding: '16px 0', textAlign: 'center', color: T.textMute, fontSize: 13 }}>
+              {calYear}년 {calMonth + 1}월 업로드된 보고서가 없습니다.
+            </div>
           ) : (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: T.textMute, fontSize: 18 }}>데이터 없음</div>
+            <DailyCalendar allReports={allReports} year={calYear} month={calMonth} />
           )}
-        </Card>
-
-        {/* TM agent ranked table */}
-        <Card style={{ overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px 12px', borderBottom: `1px solid ${T.border}` }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 2, color: T.text }}>TM 호전환 TOP 10</h3>
-            <p style={{ fontSize: 15, color: T.textMute }}>1차 호전환 성공건 기준</p>
-          </div>
-          {agentChart.length > 0 ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
-                  {['순위', '이름', '호전환', '보장분석'].map((h, i) => (
-                    <th key={h} style={{
-                      padding: '9px 16px', textAlign: i >= 2 ? 'right' : 'left',
-                      color: T.textDim, fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {agentChart.map((a, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${T.border}` }}
-                    onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <td style={{ padding: '10px 16px', width: 44 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: MONO_STACK, color: i < 3 ? T.accent : T.textMute }}>
-                        {i + 1}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 16px', fontSize: 15, fontWeight: 600, color: T.text }}>{a.name}</td>
-                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, fontWeight: 700, color: T.accent }}>
-                      {fmtNum(a.호전환)}
-                    </td>
-                    <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: T.blue }}>
-                      {fmtNum(a.보장분석)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: T.textMute, fontSize: 18 }}>TM 데이터 없음</div>
-          )}
-        </Card>
-      </div>
-
-      {/* DB 운용 현황 */}
-      <Card style={{ padding: 20 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: T.text }}>DB 운용 현황 요약</h3>
-        <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>갱신 DB 분배 현황</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-          {sectionDefs.filter(d => s[d.key]?.assigned > 0).map(def => {
-            const sec = s[def.key];
-            const util = summary.renewalDb > 0 ? sec.assigned / summary.renewalDb : 0;
-            return (
-              <div key={def.key} style={{ padding: 14, borderRadius: RADIUS.sm, background: T.bg2, border: `1px solid ${T.border}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: def.color }} />
-                  <span style={{ fontSize: 15, fontWeight: 600, color: T.text }}>{def.label}</span>
-                </div>
-                <div style={{ fontSize: 26, fontWeight: 700, fontFamily: MONO_STACK, color: def.color, marginBottom: 6 }}>
-                  {fmtNum(sec.assigned)}
-                </div>
-                <ProgressBar value={util} color={def.color} height={4} />
-                <div style={{ fontSize: 13, color: T.textMute, marginTop: 4, fontFamily: MONO_STACK }}>
-                  전체의 {(util * 100).toFixed(1)}%
-                </div>
-              </div>
-            );
-          })}
         </div>
       </Card>
     </div>

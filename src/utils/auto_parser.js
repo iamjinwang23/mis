@@ -128,6 +128,26 @@ function parseMonthSheet(wb, sheetName, includeAgents = false) {
   return { summary, sections };
 }
 
+// 보장분석 시트에서 날짜별 집계 → 최신일 = 당일실적
+function parseCoverageSheet(wb) {
+  const ws = wb.Sheets['보장분석'];
+  if (!ws) return { today: 0, latestDate: null };
+
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+  const byDate = {};
+
+  for (let i = 1; i < aoa.length; i++) {
+    const dateStr = aoa[i]?.[5]; // 배정일 (col 5, "YYYY-MM-DD" 문자열)
+    if (!dateStr || typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) continue;
+    const d = dateStr.slice(0, 10); // "YYYY-MM-DD"
+    byDate[d] = (byDate[d] || 0) + 1;
+  }
+
+  const dates = Object.keys(byDate).sort();
+  const latestDate = dates.at(-1) || null;
+  return { today: latestDate ? byDate[latestDate] : 0, latestDate };
+}
+
 export function parseAutoReport(buffer) {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
 
@@ -161,6 +181,10 @@ export function parseAutoReport(buffer) {
   if (!validSections.length) {
     throw new Error('자동차 파일에서 섹션 데이터를 찾을 수 없습니다.');
   }
+
+  // 보장분석 시트 → 당일실적
+  const { today: coverageToday } = parseCoverageSheet(wb);
+  summary.coverageToday = coverageToday;
 
   return { reportDate, sheetName, summary, sections, monthlyTrend };
 }

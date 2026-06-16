@@ -1,467 +1,602 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
-  Search, X,
-  Phone, Shield, Award, Activity, BarChart3, TrendingUp, Users, Target, Network,
+  X, ChevronRight,
+  Award, BarChart3, TrendingUp, Users, Target, Network,
 } from 'lucide-react';
-import { T, FONT_STACK, MONO_STACK, RADIUS, SHADOW } from '../../theme.js';
+import { T, MONO_STACK, RADIUS, SHADOW } from '../../theme.js';
 import { fmtNum, fmtPct, fmtMan, fmtDate } from '../../utils/formatters.js';
 import Card from '../../components/Card.jsx';
 import KPICard from '../../components/KPICard.jsx';
 import ProgressBar from '../../components/ProgressBar.jsx';
-import BranchDetailPanel from './BranchDetailPanel.jsx';
-import SortHead from '../../components/SortHead.jsx';
 import AiInsightCard from '../../components/AiInsightCard.jsx';
 import { useAiInsight } from '../../hooks/useAiInsight.js';
+import { isHoliday } from '../../utils/koreaHolidays.js';
 
-function delta(curr, prev, isRate = false) {
-  if (prev == null || curr == null) return undefined;
-  const d = curr - prev;
-  if (d === 0) return undefined;
-  if (isRate) return `${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%p`;
-  return `${d >= 0 ? '+' : ''}${fmtNum(Math.abs(d))}${d < 0 ? '▼' : ''}`;
+// ── 아코디언 상세 (지점 클릭 시 인라인 표시) ───────────────────────
+function BranchAccordion({ branch }) {
+  const ac = branch.achieve >= 1 ? T.green : branch.achieve >= 0.5 ? T.accent : branch.achieve > 0 ? T.yellow : T.textMute;
+  const dbSections = [
+    { label: '호전환', color: T.accent, data: branch.hw || {} },
+    { label: '보장분석', color: T.blue, data: branch.cov || {} },
+  ];
+  return (
+    <div style={{ padding: '14px 16px', background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
+      {/* 실적 요약 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 12 }}>
+        {[
+          { label: '당월 건수', value: fmtNum(branch.count), color: T.text },
+          { label: '당월 월납P', value: fmtMan(branch.monthly), color: T.text },
+          { label: '목표', value: fmtMan(branch.target), color: T.textDim },
+          { label: '재적', value: `${fmtNum(branch.headcount)}명`, color: T.textDim },
+          { label: '당월 위촉/해촉', value: `+${fmtNum(branch.hire || 0)} / ${fmtNum(branch.fire || 0)}`, color: T.textDim },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ padding: '10px 12px', borderRadius: RADIUS.sm, background: T.card, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 11, color: T.textMute, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: MONO_STACK, color }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      {/* 달성율 바 */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: T.textDim, marginBottom: 4 }}>
+          <span>달성율</span>
+          <span style={{ fontFamily: MONO_STACK, fontWeight: 700, color: ac }}>{fmtPct(branch.achieve)}</span>
+        </div>
+        <ProgressBar value={branch.achieve} color={ac} height={5} />
+      </div>
+      {/* DB 운영 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+        {dbSections.map(({ label, color, data }) => (
+          <div key={label} style={{ padding: '10px 12px', borderRadius: RADIUS.sm, background: T.card, border: `1px solid ${color}28` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color }}>{label}</span>
+              <span style={{ fontSize: 12, fontFamily: MONO_STACK, color, fontWeight: 600 }}>체결율 {fmtPct(data.contractRate)}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {[
+                { l: '배정DB', v: fmtNum(data.assignedDb) },
+                { l: '체결건수', v: fmtNum(data.contracts) },
+                { l: '실적', v: fmtMan(data.amount) },
+                { l: '가동인원', v: `${fmtNum(data.active)}명` },
+              ].map(({ l, v }) => (
+                <div key={l}>
+                  <div style={{ fontSize: 11, color: T.textMute }}>{l}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, fontFamily: MONO_STACK, color: T.text }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function deltaNum(curr, prev, isRate = false) {
-  if (prev == null || curr == null) return undefined;
-  const d = curr - prev;
-  if (d === 0) return undefined;
-  if (isRate) return (d * 100).toFixed(1) + '%p';
-  return (d >= 0 ? '+' : '') + fmtNum(Math.round(Math.abs(d)));
+// ── 채널 세부 팝업 ───────────────────────────────────────────────
+function ChannelModal({ channelType, branches, onClose }) {
+  const label = channelType === 'direct' ? '직영' : '지사';
+  const color = channelType === 'direct' ? T.accent : T.green;
+  const [expandedName, setExpandedName] = useState(null);
+
+  const list = useMemo(
+    () => branches
+      .filter(b => channelType === 'direct' ? b.isDirect : !b.isDirect)
+      .sort((a, b) => (b.achieve || 0) - (a.achieve || 0)),
+    [branches, channelType]
+  );
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200 }} />
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+        width: 'min(680px, 95vw)', height: 'min(78vh, 680px)',
+        background: T.card, borderRadius: RADIUS.md, boxShadow: SHADOW.deep,
+        zIndex: 201, display: 'flex', flexDirection: 'column',
+        animation: 'fadeInModal 0.15s ease',
+      }}>
+        <style>{`@keyframes fadeInModal { from { opacity:0; transform:translate(-50%,-53%); } to { opacity:1; transform:translate(-50%,-50%); } }`}</style>
+        <div style={{ padding: '18px 20px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ padding: '2px 10px', borderRadius: RADIUS.pill, background: `${color}18`, color, fontSize: 13, fontWeight: 700 }}>{label}</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: T.text }}>{label} 세부 현황</span>
+            <span style={{ fontSize: 13, color: T.textMute }}>{list.length}개 지점 · 클릭 시 상세</span>
+          </div>
+          <button type="button" onClick={onClose} style={{ padding: 6, borderRadius: RADIUS.xs, background: 'transparent', border: `1px solid ${T.border}`, color: T.textDim, cursor: 'pointer' }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: T.bg2, position: 'sticky', top: 0, zIndex: 1 }}>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: T.textDim, fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap', borderBottom: `1px solid ${T.border}`, width: 20 }} />
+                {['지점명', '관리자', '건수', '당월P', '달성율', '재적'].map((h, i) => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: i >= 2 ? 'right' : 'left', color: T.textDim, fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap', borderBottom: `1px solid ${T.border}` }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((b, i) => {
+                const ac = b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.accent : b.achieve > 0 ? T.yellow : T.textMute;
+                const isOpen = expandedName === b.name;
+                return (
+                  <>
+                    <tr key={`row-${i}`}
+                      onClick={() => setExpandedName(isOpen ? null : b.name)}
+                      style={{ borderBottom: isOpen ? 'none' : `1px solid ${T.border}`, cursor: 'pointer', background: isOpen ? T.accentSoft : 'transparent', transition: 'background 0.15s' }}
+                      onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = T.cardHover; }}
+                      onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12, color: T.textMute }}>
+                        <span style={{ display: 'inline-block', transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</span>
+                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: 14, fontWeight: 600, color: isOpen ? T.accent : T.text }}>{b.name}</td>
+                      <td style={{ padding: '10px 12px', fontSize: 14, color: T.textDim }}>{b.manager || '-'}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 14 }}>{fmtNum(b.count)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 14 }}>{fmtMan(b.monthly)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        <span style={{ fontFamily: MONO_STACK, fontSize: 14, fontWeight: 700, color: ac }}>{fmtPct(b.achieve)}</span>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 14 }}>{fmtNum(b.headcount)}</td>
+                    </tr>
+                    <tr key={`accordion-${i}`} style={{ borderBottom: isOpen ? `1px solid ${T.border}` : 'none' }}>
+                      <td colSpan={7} style={{ padding: 0 }}>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateRows: isOpen ? '1fr' : '0fr',
+                          transition: 'grid-template-rows 0.28s ease',
+                        }}>
+                          <div style={{ overflow: 'hidden' }}>
+                            <BranchAccordion branch={b} />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
 }
 
-export default function Dashboard({ data, prevData }) {
+// ── 일별 실적 달력 ───────────────────────────────────────────────
+function DailyCalendar({ allReports, year, month, field }) {
+  const dateMap = useMemo(() => {
+    const map = {};
+    (allReports || []).forEach(r => {
+      const d = r.reportDate ? new Date(r.reportDate) : null;
+      if (!d || isNaN(d) || d.getFullYear() !== year || d.getMonth() !== month) return;
+      const val = r.data?.summary?.[field]?.today;
+      if (val != null) map[d.getDate()] = val;
+    });
+    return map;
+  }, [allReports, year, month, field]);
+
+  const cells = useMemo(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDow = new Date(year, month, 1).getDay();
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear  = month === 0 ? year - 1 : year;
+    const nextMonth = month === 11 ? 0 : month + 1;
+    const nextYear  = month === 11 ? year + 1 : year;
+    const arr = [];
+    for (let i = 0; i < firstDow; i++)
+      arr.push({ day: prevMonthDays - (firstDow - 1 - i), isCurrentMonth: false, actualYear: prevYear, actualMonth: prevMonth });
+    for (let d = 1; d <= daysInMonth; d++)
+      arr.push({ day: d, isCurrentMonth: true, actualYear: year, actualMonth: month });
+    let nextDay = 1;
+    while (arr.length % 7 !== 0)
+      arr.push({ day: nextDay++, isCurrentMonth: false, actualYear: nextYear, actualMonth: nextMonth });
+    return arr;
+  }, [year, month]);
+
+  const weeks = useMemo(() => {
+    const w = [];
+    for (let i = 0; i < cells.length; i += 7) w.push(cells.slice(i, i + 7));
+    return w;
+  }, [cells]);
+
+  const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
+        <thead>
+          <tr>
+            {DOW.map((d, i) => (
+              <th key={d} style={{
+                padding: '8px 4px', textAlign: 'center', fontSize: 12, fontWeight: 700,
+                width: `${100/7}%`,
+                color: i === 0 || i === 6 ? T.red : T.textDim,
+                background: T.bg2,
+                border: `1px solid ${T.border}`,
+              }}>{d}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.map((week, wi) => (
+            <tr key={wi}>
+              {week.map((cell, di) => {
+                const isWeekend = di === 0 || di === 6;
+                const val = cell.isCurrentMonth ? dateMap[cell.day] : undefined;
+                const hasData = val != null && val > 0;
+                const bg = '#ffffff';
+                const holName = isHoliday(cell.actualYear, cell.actualMonth, cell.day);
+                const isRed = isWeekend || !!holName;
+                const dateColor = !cell.isCurrentMonth
+                  ? T.textMute
+                  : isRed ? T.red : T.textDim;
+                return (
+                  <td key={di} title={holName || undefined} style={{
+                    border: `1px solid ${T.border}`,
+                    background: bg,
+                    position: 'relative',
+                    height: 66,
+                    verticalAlign: 'top',
+                    minWidth: 40,
+                  }}>
+                    <span style={{
+                      position: 'absolute', top: 5, left: 7,
+                      fontSize: 13, fontFamily: MONO_STACK,
+                      color: dateColor,
+                      fontWeight: cell.isCurrentMonth ? 600 : 400,
+                      opacity: cell.isCurrentMonth ? 1 : 0.45,
+                    }}>{cell.day}</span>
+                    {hasData && (
+                      <span style={{
+                        position: 'absolute', bottom: 5, right: 7,
+                        fontSize: 14, fontWeight: 700, fontFamily: MONO_STACK,
+                        color: T.accent,
+                        opacity: cell.isCurrentMonth ? 1 : 0.45,
+                      }}>{fmtMan(val)}</span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── 스타일 헬퍼 ──────────────────────────────────────────────────
+const TH = (align = 'center') => ({
+  padding: '10px 12px', textAlign: align, color: T.textDim,
+  fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+  whiteSpace: 'nowrap', background: T.bg2, borderBottom: `1px solid ${T.border}`,
+});
+const TD = (align = 'center', extra = {}) => ({
+  padding: '12px 12px', textAlign: align, fontFamily: MONO_STACK,
+  fontSize: 14, borderBottom: `1px solid ${T.border}`, ...extra,
+});
+
+// ── 메인 ────────────────────────────────────────────────────────
+export default function Dashboard({ data, prevData, allReports = [] }) {
   const { reportDate, baseDate, branches, summary } = data;
   const total = summary.total || {};
   const direct = summary.direct || {};
   const branch = summary.branch || {};
   const pt = prevData?.summary?.total || null;
 
+  // 전월 마지막 파일 → 전월건수 / 전월인력 전용 (확정값)
+  const prevMonthReport = useMemo(() => {
+    if (!allReports?.length || !reportDate) return null;
+    const curr = new Date(reportDate);
+    const pmYear = curr.getMonth() === 0 ? curr.getFullYear() - 1 : curr.getFullYear();
+    const pmMonth = curr.getMonth() === 0 ? 11 : curr.getMonth() - 1;
+    return allReports
+      .filter(r => { const d = new Date(r.reportDate); return d.getFullYear() === pmYear && d.getMonth() === pmMonth; })
+      .sort((a, b) => new Date(b.reportDate) - new Date(a.reportDate))[0] || null;
+  }, [allReports, reportDate]);
+
+  const pmTotal  = prevMonthReport?.data?.summary?.total  || null;
+  const pmDirect = prevMonthReport?.data?.summary?.direct || null;
+  const pmBranch = prevMonthReport?.data?.summary?.branch || null;
+
   const { insight, loading: aiLoading, error: aiError, refresh: aiRefresh } = useAiInsight(
-    'gfp',
-    { total, direct, branch, branches },
-    `${reportDate}`
+    'gfp', { total, direct, branch, branches }, `${reportDate}`
   );
 
-  const [sortKey, setSortKey] = useState('achieve');
-  const [sortDir, setSortDir] = useState('desc');
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [selectedBranch, setSelectedBranch] = useState(null);
-  const [animated, setAnimated] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setAnimated(true), 50);
-    return () => clearTimeout(t);
-  }, []);
+  const [channelPopup, setChannelPopup] = useState(null);
+  const [dailyTab, setDailyTab] = useState('total');
 
-  const filteredBranches = useMemo(() => {
-    let list = [...branches];
-    if (filterType === 'direct') list = list.filter(b => b.isDirect);
-    else if (filterType === 'branch') list = list.filter(b => !b.isDirect);
-    else if (filterType === 'active') list = list.filter(b => b.count > 0);
-    else if (filterType === 'inactive') list = list.filter(b => b.count === 0);
+  const initDate = reportDate instanceof Date ? reportDate : new Date(reportDate || Date.now());
+  const [calYear, setCalYear] = useState(initDate.getFullYear());
+  const [calMonth, setCalMonth] = useState(initDate.getMonth());
 
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(b =>
-        (b.name || '').toLowerCase().includes(q) ||
-        (b.manager || '').toLowerCase().includes(q)
-      );
-    }
-
-    list.sort((a, b) => {
-      const av = a[sortKey] ?? 0;
-      const bv = b[sortKey] ?? 0;
-      const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-    return list;
-  }, [branches, sortKey, sortDir, search, filterType]);
-
-  const top10 = useMemo(() => (
-    [...branches]
-      .filter(b => b.monthly > 0)
-      .sort((a, b) => b.monthly - a.monthly)
-      .slice(0, 10)
-      .map(b => ({ name: b.name?.replace(/^GFP/, '') || '', 월납P: b.monthly, 달성율: Math.round(b.achieve * 100) }))
-  ), [branches]);
-
-  const compareData = useMemo(() => ([
-    { name: '직영', 건수: direct.count || 0, 월납P: direct.monthly || 0, 목표: direct.target || 0, 달성율: (direct.achieve || 0) * 100, 재적: direct.headcount || 0 },
-    { name: '지사', 건수: branch.count || 0, 월납P: branch.monthly || 0, 목표: branch.target || 0, 달성율: (branch.achieve || 0) * 100, 재적: branch.headcount || 0 },
-  ]), [direct, branch]);
-
-  const dbStats = useMemo(() => ([
-    { name: '호전환', icon: Phone, color: T.accent, ...total.hw, active: total.hw?.active || 0, target: total.hw?.targetDb || 0, assigned: total.hw?.assignedDb || 0, contracts: total.hw?.contracts || 0, amount: total.hw?.amount || 0, rate: total.hw?.contractRate || 0 },
-    { name: '보장분석', icon: Shield, color: T.blue, ...total.cov, active: total.cov?.active || 0, target: total.cov?.targetDb || 0, assigned: total.cov?.assignedDb || 0, contracts: total.cov?.contracts || 0, amount: total.cov?.amount || 0, rate: total.cov?.contractRate || 0 },
-  ]), [total]);
-
-  const achieveBuckets = useMemo(() => {
-    const buckets = [
-      { range: '0%', min: 0, max: 0, count: 0, color: T.textMute },
-      { range: '0~30%', min: 0.0001, max: 0.3, count: 0, color: T.red },
-      { range: '30~60%', min: 0.3, max: 0.6, count: 0, color: T.yellow },
-      { range: '60~100%', min: 0.6, max: 1, count: 0, color: T.blue },
-      { range: '100%↑', min: 1, max: Infinity, count: 0, color: T.green },
-    ];
-    branches.forEach(b => {
-      const a = b.achieve || 0;
-      if (a === 0) buckets[0].count++;
-      else if (a <= 0.3) buckets[1].count++;
-      else if (a <= 0.6) buckets[2].count++;
-      else if (a < 1) buckets[3].count++;
-      else buckets[4].count++;
-    });
-    return buckets;
-  }, [branches]);
-
-  const handleSort = (key) => {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortKey(key); setSortDir('desc'); }
+  const moveMonth = (delta) => {
+    const newDate = new Date(calYear, calMonth + delta, 1);
+    setCalYear(newDate.getFullYear());
+    setCalMonth(newDate.getMonth());
   };
 
+  // ── 실적 rows (전월건수: 전달 최종 파일 기준 확정값)
+  const perfRows = [
+    { label: '전체', d: total,  prev: pmTotal,  color: T.text,  bold: true },
+    { label: '직영', d: direct, prev: pmDirect, color: T.accent, type: 'direct' },
+    { label: '지사', d: branch, prev: pmBranch, color: T.green,  type: 'branch' },
+  ];
 
+  // ── 인원 rows (전월인력: 전달 최종 파일 기준 확정값)
+  const personnelRows = [
+    { label: '전체', d: total,  prev: pmTotal,  color: T.text,  bold: true },
+    { label: '직영', d: direct, prev: pmDirect, color: T.accent, type: 'direct' },
+    { label: '지사', d: branch, prev: pmBranch, color: T.green,  type: 'branch' },
+  ];
+
+  // ── DB rows ──
+  const hwT = total.hw || {}, covT = total.cov || {};
+  const hwD = direct.hw || {}, covD = direct.cov || {};
+  const totalAssigned = (hwT.assignedDb || 0) + (covT.assignedDb || 0);
+  const totalContracts = (hwT.contracts || 0) + (covT.contracts || 0);
+  const dbRows = [
+    {
+      label: '전체', color: T.text, bold: true,
+      targetDb: (hwT.targetDb || 0) + (covT.targetDb || 0),
+      contracts: totalContracts,
+      amount: (hwT.amount || 0) + (covT.amount || 0),
+      contractRate: totalAssigned > 0 ? totalContracts / totalAssigned : 0,
+    },
+    {
+      label: '직영_호전환', color: T.accent,
+      targetDb: hwD.targetDb || 0,
+      contracts: hwD.contracts || 0,
+      amount: hwD.amount || 0,
+      contractRate: hwD.contractRate || 0,
+    },
+    {
+      label: '직영_퍼미션', color: T.blue,
+      targetDb: covD.targetDb || 0,
+      contracts: covD.contracts || 0,
+      amount: covD.amount || 0,
+      contractRate: covD.contractRate || 0,
+    },
+  ];
 
   return (
     <div className="page-wrap">
-      {/* Page header */}
+      {/* 페이지 헤더 */}
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>
-          GFP 총괄 대시보드
-        </h1>
-        <p style={{ fontSize: 18, color: T.textDim, fontFamily: MONO_STACK }}>
-          보고일 {fmtDate(reportDate)} · 기준일 {fmtDate(baseDate)}
-        </p>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>GFP 총괄 대시보드</h1>
+        <p style={{ fontSize: 18, color: T.textDim, fontFamily: MONO_STACK }}>보고일 {fmtDate(reportDate)} · 작성일 {fmtDate(baseDate)}</p>
       </div>
 
-      <AiInsightCard
-        insight={insight}
-        loading={aiLoading}
-        error={aiError}
-        onRefresh={aiRefresh}
-        reportDate={fmtDate(reportDate)}
-      />
+      <AiInsightCard insight={insight} loading={aiLoading} error={aiError} onRefresh={aiRefresh} reportDate={fmtDate(reportDate)} />
 
-      <div>
+      {/* ─── KPI 카드 ────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+        <KPICard label="전사 영업건수" value={fmtNum(total.count)} sub={`직영 ${fmtNum(direct.count)} · 지사 ${fmtNum(branch.count)}`} color={T.accent} icon={BarChart3} delta={pt ? (total.count - (pt.count || 0)) : undefined} />
+        <KPICard label="당월 월납P" value={fmtMan(total.monthly)} sub={`목표 ${fmtMan(total.target)}`} color={T.green} icon={TrendingUp} delta={pt ? (total.monthly - (pt.monthly || 0)) : undefined} />
+        <KPICard label="달성율" value={fmtPct(total.achieve)} sub={`직영 ${fmtPct(direct.achieve)} · 지사 ${fmtPct(branch.achieve)}`} color={total.achieve >= 1 ? T.green : total.achieve >= 0.5 ? T.yellow : T.red} icon={Target} delta={pt ? ((total.achieve - (pt.achieve || 0)) * 100) : undefined} />
+        <KPICard label="재적 인원" value={fmtNum(total.headcount)} sub={`직영 ${fmtNum(direct.headcount)} · 지사 ${fmtNum(branch.headcount)}`} color={T.blue} icon={Users} delta={pt ? (total.headcount - (pt.headcount || 0)) : undefined} />
+        <KPICard label="당월 위촉/해촉" value={`${fmtNum(total.hire)} / ${fmtNum(total.fire)}`} sub={`순증감 ${fmtNum((total.hire || 0) - (total.fire || 0))}명`} color={T.purple} icon={Network} />
+        <KPICard label="DB 체결 합계" value={fmtMan((total.hw?.amount || 0) + (total.cov?.amount || 0))} sub={`체결건수 ${fmtNum((total.hw?.contracts || 0) + (total.cov?.contracts || 0))}건`} color={T.yellow} icon={Award} delta={pt ? ((total.hw?.amount || 0) + (total.cov?.amount || 0) - ((pt.hw?.amount || 0) + (pt.cov?.amount || 0))) : undefined} />
+      </div>
 
-        {/* KPI ROW */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 28 }}>
-          <KPICard label="전사 영업건수" value={fmtNum(total.count)} sub={`직영 ${fmtNum(direct.count)} · 지사 ${fmtNum(branch.count)}`} color={T.accent} icon={BarChart3} delta={pt ? (total.count - (pt.count||0)) : undefined} />
-          <KPICard label="당월 월납P" value={fmtMan(total.monthly)} sub={`목표 ${fmtMan(total.target)}`} color={T.green} icon={TrendingUp} delta={pt ? (total.monthly - (pt.monthly||0)) : undefined} />
-          <KPICard label="달성율" value={fmtPct(total.achieve)} sub={`직영 ${fmtPct(direct.achieve)} · 지사 ${fmtPct(branch.achieve)}`} color={total.achieve >= 1 ? T.green : total.achieve >= 0.5 ? T.yellow : T.red} icon={Target} delta={pt ? ((total.achieve - (pt.achieve||0)) * 100) : undefined} />
-          <KPICard label="재적 인원" value={fmtNum(total.headcount)} sub={`직영 ${fmtNum(direct.headcount)} · 지사 ${fmtNum(branch.headcount)}`} color={T.blue} icon={Users} delta={pt ? (total.headcount - (pt.headcount||0)) : undefined} />
-          <KPICard label="당월 위촉/해촉" value={`${fmtNum(total.hire)} / ${fmtNum(total.fire)}`} sub={`순증감 ${fmtNum((total.hire || 0) - (total.fire || 0))}명`} color={T.purple} icon={Network} />
-          <KPICard label="DB 체결 합계" value={fmtMan((total.hw?.amount || 0) + (total.cov?.amount || 0))} sub={`체결건수 ${fmtNum((total.hw?.contracts || 0) + (total.cov?.contracts || 0))}건`} color={T.yellow} icon={Award} delta={pt ? ((total.hw?.amount||0) + (total.cov?.amount||0) - ((pt.hw?.amount||0) + (pt.cov?.amount||0))) : undefined} />
+      {/* ─── 실적 요약 + 일별 추이 (통합) ──────────────── */}
+      <Card style={{ overflow: 'hidden', marginBottom: 24 }}>
+        {/* 헤더 */}
+        <div style={{ padding: '18px 20px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text }}>실적 요약</h3>
+          <p style={{ fontSize: 13, color: T.textMute }}>채널별 영업 실적 · 직영·지사 클릭 시 지점 세부</p>
         </div>
-
-        {/* 직영 vs 지사 + 달성율 분포 */}
-        <div className="grid-2-1">
-          <Card style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>직영 vs 지사 비교</h3>
-            <p style={{ fontSize: 15, color: T.textMute, marginBottom: 28 }}>채널별 영업 실적과 인력 구성</p>
-            <div className="grid-3col" style={{ gap: 40 }}>
-              {[
-                {
-                  label: '월납P',
-                  direct: { value: direct.monthly || 0, display: fmtMan(direct.monthly) },
-                  branch: { value: branch.monthly || 0, display: fmtMan(branch.monthly) },
-                },
-                {
-                  label: '건수',
-                  direct: { value: direct.count || 0, display: fmtNum(direct.count) },
-                  branch: { value: branch.count || 0, display: fmtNum(branch.count) },
-                },
-                {
-                  label: '재적인원',
-                  direct: { value: direct.headcount || 0, display: fmtNum(direct.headcount) },
-                  branch: { value: branch.headcount || 0, display: fmtNum(branch.headcount) },
-                },
-              ].map(({ label, direct: d, branch: b }) => {
-                const max = Math.max(d.value, b.value, 1);
-                const BAR_H = 180;
-                const BAR_W = 56;
-                const bars = [
-                  { name: '직영', color: T.accent, data: d },
-                  { name: '지사', color: T.green,  data: b },
-                ];
+        {/* 실적 테이블 */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={{ ...TH('left'), width: '13%' }}>구분</th>
+                <th style={TH()}>당일</th>
+                <th style={TH()}>당월누적(P)</th>
+                <th style={TH()}>당월목표</th>
+                <th style={{ ...TH(), width: '18%' }}>달성율</th>
+                <th style={TH()}>당월건수</th>
+                <th style={TH()}>전월건수</th>
+              </tr>
+            </thead>
+            <tbody>
+              {perfRows.map(({ label, d, prev, color, bold, type }) => {
+                const ac = (d.achieve || 0) >= 1 ? T.green : (d.achieve || 0) >= 0.5 ? T.accent : (d.achieve || 0) > 0 ? T.yellow : T.textMute;
+                const clickable = !!type;
                 return (
-                  <div key={label} style={{ maxWidth: 200, margin: '0 auto', width: '100%' }}>
-                    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', justifyContent: 'center', height: BAR_H + 8 }}>
-                      {bars.map(({ name, color, data }) => {
-                        const h = Math.max(Math.round((data.value / max) * BAR_H), 4);
-                        return (
-                          <div key={name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: BAR_W }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: MONO_STACK, color }}>{data.display}</span>
-                            <div style={{ width: '100%', height: animated ? h : 0, background: color, borderRadius: '4px 4px 0 0', opacity: 0.9, transition: 'height 0.6s ease' }} />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ height: 1, background: T.border, marginBottom: 8 }} />
-                    <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginBottom: 6 }}>
-                      {bars.map(({ name, color }) => (
-                        <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 4, width: BAR_W, justifyContent: 'center' }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block', flexShrink: 0 }} />
-                          <span style={{ fontSize: 13, color: T.textDim }}>{name}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: 13, color: T.textMute, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', textAlign: 'center' }}>{label}</div>
-                  </div>
+                  <tr key={label}
+                    style={{ borderBottom: `1px solid ${T.border}`, cursor: clickable ? 'pointer' : 'default', transition: 'background 0.15s' }}
+                    onClick={clickable ? () => setChannelPopup(type) : undefined}
+                    onMouseEnter={e => { if (clickable) e.currentTarget.style.background = T.cardHover; }}
+                    onMouseLeave={e => { if (clickable) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <td style={{ padding: '13px 12px', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {bold
+                          ? <span style={{ fontSize: 14, fontWeight: 800, color }}>{label}</span>
+                          : <span style={{ padding: '2px 8px', borderRadius: RADIUS.pill, background: `${color}18`, color, fontSize: 13, fontWeight: 700 }}>{label}</span>
+                        }
+                        {clickable && <ChevronRight size={12} color={T.textMute} />}
+                      </div>
+                    </td>
+                    <td style={TD()}>{fmtMan(d.today)}</td>
+                    <td style={{ ...TD(), fontWeight: bold ? 700 : 500, color: T.text }}>{fmtMan(d.monthly)}</td>
+                    <td style={{ ...TD(), color: T.textDim }}>{fmtMan(d.target)}</td>
+                    <td style={TD()}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <div style={{ width: 44 }}><ProgressBar value={d.achieve} color={ac} height={3} /></div>
+                        <span style={{ color: ac, fontWeight: 700, minWidth: 46 }}>{fmtPct(d.achieve)}</span>
+                      </div>
+                    </td>
+                    <td style={{ ...TD(), fontWeight: bold ? 700 : 400 }}>{fmtNum(d.count)}</td>
+                    <td style={{ ...TD(), color: prev ? T.textDim : T.textMute }}>{prev ? fmtNum(prev.count) : '—'}</td>
+                  </tr>
                 );
               })}
-            </div>
-          </Card>
-
-          <Card style={{ padding: 24 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>달성율 분포</h3>
-            <p style={{ fontSize: 15, color: T.textMute, marginBottom: 16 }}>지점/지사 {branches.length}곳 기준</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[...achieveBuckets].reverse().map(bucket => {
-                const max = Math.max(...achieveBuckets.map(b => b.count));
-                const w = max > 0 ? (bucket.count / max) * 100 : 0;
-                return (
-                  <div key={bucket.range}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 15 }}>
-                      <span style={{ color: T.textDim, fontFamily: MONO_STACK }}>{bucket.range}</span>
-                      <span style={{ fontFamily: MONO_STACK, fontWeight: 700, color: bucket.color }}>{bucket.count}곳</span>
-                    </div>
-                    <div style={{ width: '100%', height: 22, borderRadius: 4, background: T.bg2, overflow: 'hidden' }}>
-                      <div style={{ width: animated ? `${w}%` : '0%', height: '100%', background: bucket.color, opacity: 0.85, transition: 'width 0.6s ease' }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
+            </tbody>
+          </table>
         </div>
-
-        {/* DB 운영 */}
-        <Card style={{ padding: 24, marginBottom: 24 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>DB 운영 현황</h3>
-          <p style={{ fontSize: 15, color: T.textMute, marginBottom: 20 }}>호전환 vs 보장분석 — 전사 통합 기준</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-            {dbStats.map(s => {
-              const Icon = s.icon;
-              const utilRate = s.target > 0 ? s.assigned / s.target : 0;
-              return (
-                <div key={s.name} style={{ padding: 18, borderRadius: RADIUS.sm, background: `${s.color}0e`, border: `1px solid ${s.color}30` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: `${s.color}1f`, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon size={16} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 18, fontWeight: 700 }}>{s.name}</div>
-                        <div style={{ fontSize: 13, color: T.textMute, fontFamily: MONO_STACK }}>가동 {s.active}명</div>
-                      </div>
-                    </div>
-                    <div style={{ padding: '4px 10px', borderRadius: RADIUS.pill, background: `${s.color}1a`, color: s.color, fontSize: 15, fontWeight: 700, fontFamily: MONO_STACK }}>
-                      체결율 {fmtPct(s.rate)}
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                    {[
-                      { label: '월배분목표', value: fmtNum(s.target) },
-                      { label: '배정 디비', value: fmtNum(s.assigned), sub: `배정률 ${fmtPct(utilRate)}` },
-                      { label: '체결건수', value: fmtNum(s.contracts), color: s.color },
-                      { label: '실적', value: fmtMan(s.amount), color: s.color },
-                    ].map(({ label, value, sub, color }) => (
-                      <div key={label}>
-                        <div style={{ fontSize: 13, color: T.textDim, marginBottom: 4 }}>{label}</div>
-                        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: MONO_STACK, color: color || T.text }}>{value}</div>
-                        {sub && <div style={{ fontSize: 13, color: T.textMute, fontFamily: MONO_STACK, marginTop: 2 }}>{sub}</div>}
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                      <span style={{ color: T.textDim }}>배정 → 체결 전환율</span>
-                      <span style={{ fontFamily: MONO_STACK, fontWeight: 600, color: s.color }}>{fmtPct(s.rate)}</span>
-                    </div>
-                    <ProgressBar value={s.rate} color={s.color} height={5} />
-                  </div>
-                </div>
-              );
-            })}
+        {/* 일별 추이 구분선 + 헤더 */}
+        <div style={{ padding: '30px 20px 14px', borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8 }}>
+          {/* Left: 레이블 */}
+          <span style={{ fontSize: 12, color: T.textMute }}>일별 실적(P)</span>
+          {/* Center: 월 네비게이터 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button type="button" onClick={() => moveMonth(-1)} style={{ padding: '3px 8px', borderRadius: RADIUS.xs, background: T.bg2, border: `1px solid ${T.border}`, color: T.textDim, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>‹</button>
+            <span style={{ fontSize: 17, fontWeight: 700, color: T.text, fontFamily: MONO_STACK, minWidth: 80, textAlign: 'center' }}>
+              {calYear}. {calMonth + 1}
+            </span>
+            <button type="button" onClick={() => moveMonth(1)} style={{ padding: '3px 8px', borderRadius: RADIUS.xs, background: T.bg2, border: `1px solid ${T.border}`, color: T.textDim, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>›</button>
           </div>
-          {dbStats[0].rate > 0 && dbStats[1].rate > 0 && (
-            <div style={{ marginTop: 16, padding: 12, borderRadius: RADIUS.sm, background: T.accentSoft, border: `1px solid ${T.accentBorder}`, fontSize: 15, color: T.textDim, lineHeight: 1.6 }}>
-              <strong style={{ color: T.accent }}>인사이트</strong> · 호전환 체결율 {fmtPct(dbStats[0].rate)} vs 보장분석 체결율 {fmtPct(dbStats[1].rate)}
-              {' '}— 호전환이 약 <strong style={{ color: T.text, fontFamily: MONO_STACK }}>{(dbStats[0].rate / dbStats[1].rate).toFixed(1)}배</strong> 효율
+          {/* Right: 채널 탭 */}
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            {[['total', '전체'], ['direct', '직영'], ['branch', '지사']].map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setDailyTab(k)} style={{
+                padding: '4px 10px', borderRadius: RADIUS.xs, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: dailyTab === k ? T.accent : T.bg2,
+                color: dailyTab === k ? T.card : T.textDim,
+                border: `1px solid ${dailyTab === k ? T.accent : T.border}`,
+                fontFamily: MONO_STACK,
+              }}>{l}</button>
+            ))}
+          </div>
+        </div>
+        {/* 달력 */}
+        <div style={{ padding: '12px 20px 20px' }}>
+          {allReports.filter(r => {
+            const d = r.reportDate ? new Date(r.reportDate) : null;
+            return d && d.getFullYear() === calYear && d.getMonth() === calMonth;
+          }).length === 0 ? (
+            <div style={{ padding: '16px 0', textAlign: 'center', color: T.textMute, fontSize: 13 }}>
+              {calYear}년 {calMonth + 1}월 업로드된 보고서가 없습니다.
             </div>
+          ) : (
+            <DailyCalendar allReports={allReports} year={calYear} month={calMonth} field={dailyTab} />
           )}
-        </Card>
-
-        {/* TOP 10 테이블 */}
-        <Card style={{ overflow: 'hidden', marginBottom: 24 }}>
-          <div style={{ padding: '20px 24px 14px', borderBottom: `1px solid ${T.border}` }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 2 }}>월납P TOP 10 지점/지사</h3>
-            <p style={{ fontSize: 15, color: T.textMute }}>당월 누적 기준</p>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
-                  {['순위', '지점/지사', '당월P', '달성율'].map((h, i) => (
-                    <th key={h} style={{
-                      padding: '10px 16px', textAlign: i >= 2 ? 'right' : 'left',
-                      color: T.textDim, fontSize: 13, fontWeight: 600,
-                      letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {top10.map((d, i) => {
-                  const achieveColor = d.달성율 >= 100 ? T.green : d.달성율 >= 50 ? T.accent : T.yellow;
-                  return (
-                    <tr key={i} style={{ borderBottom: `1px solid ${T.border}` }}
-                      onMouseEnter={e => { e.currentTarget.style.background = T.cardHover; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <td style={{ padding: '11px 16px', width: 52 }}>
-                        <span style={{
-                          fontSize: 13, fontWeight: 700, fontFamily: MONO_STACK,
-                          color: i < 3 ? T.accent : T.textMute,
-                        }}>{i + 1}</span>
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: 15, fontWeight: 600, color: T.text }}>{d.name}</td>
-                      <td style={{ padding: '11px 16px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>
-                        {fmtMan(d.월납P)}
-                      </td>
-                      <td style={{ padding: '11px 16px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                          <div style={{ width: 64 }}>
-                            <ProgressBar value={d.달성율 / 100} color={achieveColor} height={4} />
-                          </div>
-                          <span style={{ fontSize: 15, fontWeight: 700, fontFamily: MONO_STACK, color: achieveColor, minWidth: 48, textAlign: 'right' }}>
-                            {d.달성율}%
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {/* 지점/지사 테이블 */}
-        <Card style={{ overflow: 'hidden' }}>
-          <div style={{ padding: '20px 20px 14px', borderBottom: `1px solid ${T.border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
-              <div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>지점·지사 상세</h3>
-                <p style={{ fontSize: 15, color: T.textMute }}>전체 {branches.length}곳 · 표시 {filteredBranches.length}곳 {selectedBranch ? '· 클릭하여 상세 확인' : '· 행 클릭 시 상세 열람'}</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: RADIUS.xs, background: T.bg2, border: `1px solid ${T.border}`, minWidth: 200 }}>
-                <Search size={14} style={{ color: T.textMute }} />
-                <input
-                  type="text" placeholder="지점명·관리자 검색"
-                  value={search} onChange={(e) => setSearch(e.target.value)}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', color: T.text, fontSize: 18, flex: 1, fontFamily: FONT_STACK }}
-                />
-                {search && <X size={14} style={{ color: T.textMute, cursor: 'pointer' }} onClick={() => setSearch('')} />}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[
-                { key: 'all', label: '전체', count: branches.length },
-                { key: 'direct', label: '직영', count: branches.filter(b => b.isDirect).length },
-                { key: 'branch', label: '지사', count: branches.filter(b => !b.isDirect).length },
-                { key: 'active', label: '실적O', count: branches.filter(b => b.count > 0).length },
-                { key: 'inactive', label: '실적X', count: branches.filter(b => b.count === 0).length },
-              ].map(f => (
-                <button type="button" key={f.key} onClick={() => setFilterType(f.key)} style={{
-                  padding: '6px 12px', borderRadius: RADIUS.xs, fontSize: 15, fontWeight: 600, cursor: 'pointer',
-                  background: filterType === f.key ? T.accent : T.bg2,
-                  color: filterType === f.key ? T.bg : T.textDim,
-                  border: `1px solid ${filterType === f.key ? T.accent : T.border}`,
-                  fontFamily: FONT_STACK,
-                }}>
-                  {f.label} <span style={{ opacity: 0.7, fontFamily: MONO_STACK }}>{f.count}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: T.bg2, borderBottom: `1px solid ${T.border}` }}>
-                  <th style={{ padding: '12px 14px', textAlign: 'left', color: T.textDim, fontSize: 13, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>구분</th>
-                  <SortHead k="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="left">지점명</SortHead>
-                  <SortHead k="manager" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="left">관리자</SortHead>
-                  <SortHead k="count" sortKey={sortKey} sortDir={sortDir} onSort={handleSort}>건수</SortHead>
-                  <SortHead k="monthly" sortKey={sortKey} sortDir={sortDir} onSort={handleSort}>당월P</SortHead>
-                  <SortHead k="target" sortKey={sortKey} sortDir={sortDir} onSort={handleSort}>목표</SortHead>
-                  <SortHead k="achieve" sortKey={sortKey} sortDir={sortDir} onSort={handleSort}>달성율</SortHead>
-                  <SortHead k="headcount" sortKey={sortKey} sortDir={sortDir} onSort={handleSort}>재적</SortHead>
-                  <SortHead k="hire" sortKey={sortKey} sortDir={sortDir} onSort={handleSort}>위촉</SortHead>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBranches.map((b, i) => {
-                  const isSelected = selectedBranch?.name === b.name;
-                  return (
-                    <tr key={`${b.no}-${b.name}-${i}`}
-                      onClick={() => setSelectedBranch(isSelected ? null : b)}
-                      style={{
-                        borderBottom: `1px solid ${T.border}`,
-                        background: isSelected ? T.accentSoft : 'transparent',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = T.cardHover; }}
-                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <td style={{ padding: '12px 14px', fontSize: 13 }}>
-                        <span style={{ padding: '3px 8px', borderRadius: 4, background: b.isDirect ? T.accentSoft : T.greenSoft, color: b.isDirect ? T.accent : T.green, fontWeight: 700, letterSpacing: '0.04em' }}>
-                          {b.isDirect ? '직영' : '지사'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 14px', fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? T.accent : T.text }}>{b.name}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 15, color: T.textDim }}>{b.manager || '-'}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtNum(b.count)}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtMan(b.monthly)}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: T.textDim }}>{fmtMan(b.target)}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                          <div style={{ width: 60 }}>
-                            <ProgressBar value={b.achieve} color={b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.accent : b.achieve > 0 ? T.yellow : T.textMute} height={4} />
-                          </div>
-                          <span style={{ fontFamily: MONO_STACK, fontSize: 15, fontWeight: 600, minWidth: 50, textAlign: 'right', color: b.achieve >= 1 ? T.green : b.achieve >= 0.5 ? T.text : b.achieve > 0 ? T.yellow : T.textMute }}>
-                            {fmtPct(b.achieve)}
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15 }}>{fmtNum(b.headcount)}</td>
-                      <td style={{ padding: '12px 14px', textAlign: 'right', fontFamily: MONO_STACK, fontSize: 15, color: b.hire > 0 ? T.green : T.textMute }}>
-                        {b.hire > 0 ? `+${fmtNum(b.hire)}` : '-'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {filteredBranches.length === 0 && (
-              <div style={{ padding: 40, textAlign: 'center', color: T.textMute, fontSize: 18 }}>
-                조건에 맞는 지점이 없습니다.
-              </div>
-            )}
-          </div>
-        </Card>
-
-        <div style={{ marginTop: 24, padding: 16, textAlign: 'center', color: T.textMute, fontSize: 13, fontFamily: MONO_STACK }}>
-          파싱: SheetJS · 시각화: Recharts · 데이터는 브라우저에서만 처리됩니다
         </div>
-      </div>
+      </Card>
 
-      {/* 지점 상세 사이드 패널 */}
-      {selectedBranch && (
-        <BranchDetailPanel branch={selectedBranch} onClose={() => setSelectedBranch(null)} />
-      )}
+      {/* ─── 인원 현황 ──────────────────────────────────── */}
+      <Card style={{ overflow: 'hidden', marginBottom: 24 }}>
+        <div style={{ padding: '18px 20px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text }}>인원 현황</h3>
+          <p style={{ fontSize: 13, color: T.textMute }}>규모(재적·달성율) 및 생산성(인당 건수·P) · 직영·지사 클릭 시 세부</p>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={{ ...TH('left'), width: '13%' }}>구분</th>
+                <th style={TH()}>재적</th>
+                <th style={TH()}>당월위촉</th>
+                <th style={TH()}>당월해촉</th>
+                <th style={TH()}>전월인력</th>
+                <th style={TH()}>인당 건수</th>
+                <th style={TH()}>인당 월납P</th>
+              </tr>
+            </thead>
+            <tbody>
+              {personnelRows.map(({ label, d, prev, color, bold, type }) => {
+                const hc = d.headcount || 0;
+                const perCount = hc > 0 ? (d.count || 0) / hc : 0;
+                const perP = hc > 0 ? (d.monthly || 0) / hc : 0;
+                const clickable = !!type;
+                return (
+                  <tr key={label}
+                    style={{ borderBottom: `1px solid ${T.border}`, cursor: clickable ? 'pointer' : 'default', transition: 'background 0.15s' }}
+                    onClick={clickable ? () => setChannelPopup(type) : undefined}
+                    onMouseEnter={e => { if (clickable) e.currentTarget.style.background = T.cardHover; }}
+                    onMouseLeave={e => { if (clickable) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <td style={{ padding: '13px 12px', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {bold
+                          ? <span style={{ fontSize: 14, fontWeight: 800, color }}>{label}</span>
+                          : <span style={{ padding: '2px 8px', borderRadius: RADIUS.pill, background: `${color}18`, color, fontSize: 13, fontWeight: 700 }}>{label}</span>
+                        }
+                        {clickable && <ChevronRight size={12} color={T.textMute} />}
+                      </div>
+                    </td>
+                    <td style={{ ...TD(), fontWeight: bold ? 700 : 500, color: T.text }}>{fmtNum(d.headcount)}</td>
+                    <td style={{ ...TD(), color: (d.hire || 0) > 0 ? T.green : T.textMute }}>
+                      {(d.hire || 0) > 0 ? `+${fmtNum(d.hire)}` : '—'}
+                    </td>
+                    <td style={{ ...TD(), color: (d.fire || 0) > 0 ? T.red : T.textMute }}>
+                      {(d.fire || 0) > 0 ? fmtNum(d.fire) : '—'}
+                    </td>
+                    <td style={{ ...TD(), color: prev ? T.textDim : T.textMute }}>{prev ? fmtNum(prev.headcount) : '—'}</td>
+                    <td style={{ ...TD(), color: perCount > 0 ? T.text : T.textMute }}>{perCount > 0 ? `${perCount.toFixed(2)}건` : '—'}</td>
+                    <td style={{ ...TD(), color: perP > 0 ? T.accent : T.textMute }}>{perP > 0 ? fmtMan(perP) : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* ─── DB 운영 현황 ────────────────────────────────── */}
+      <Card style={{ overflow: 'hidden', marginBottom: 24 }}>
+        <div style={{ padding: '18px 20px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text }}>DB 운영 현황</h3>
+          <p style={{ fontSize: 13, color: T.textMute }}>배분 · 체결 · 금액 기준 · 계약단가 = 계약금액 ÷ 계약건수</p>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={{ ...TH('left'), width: '16%' }}>구분</th>
+                <th style={TH()}>배분</th>
+                <th style={TH()}>계약건수</th>
+                <th style={{ ...TH(), width: '20%' }}>체결율</th>
+                <th style={TH()}>계약금액(총액)</th>
+                <th style={TH()}>계약단가</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dbRows.map(({ label, color, bold, targetDb, contracts, amount, contractRate }) => {
+                const unitPrice = contracts > 0 ? amount / contracts : 0;
+                const rc = contractRate >= 0.15 ? T.green : contractRate >= 0.1 ? T.accent : T.yellow;
+                return (
+                  <tr key={label} style={{ borderBottom: `1px solid ${T.border}` }}
+                    onMouseEnter={e => e.currentTarget.style.background = T.cardHover}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '13px 12px' }}>
+                      {bold
+                        ? <span style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{label}</span>
+                        : <span style={{ padding: '2px 8px', borderRadius: RADIUS.pill, background: `${color}18`, color, fontSize: 13, fontWeight: 700 }}>{label}</span>
+                      }
+                    </td>
+                    <td style={{ ...TD(), fontWeight: bold ? 700 : 400 }}>{fmtNum(targetDb)}</td>
+                    <td style={{ ...TD(), color: contracts > 0 ? color : T.textMute, fontWeight: contracts > 0 ? 700 : 400 }}>{fmtNum(contracts)}</td>
+                    <td style={TD()}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <div style={{ width: 40 }}><ProgressBar value={contractRate} color={rc} height={3} /></div>
+                        <span style={{ color: rc, fontWeight: 700, minWidth: 44 }}>{fmtPct(contractRate)}</span>
+                      </div>
+                    </td>
+                    <td style={{ ...TD(), fontWeight: bold ? 700 : 400, color: amount > 0 ? T.text : T.textMute }}>{fmtMan(amount)}</td>
+                    <td style={{ ...TD(), color: unitPrice > 0 ? T.textDim : T.textMute }}>{unitPrice > 0 ? fmtMan(unitPrice) : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+{channelPopup && <ChannelModal channelType={channelPopup} branches={branches} onClose={() => setChannelPopup(null)} />}
     </div>
   );
 }
