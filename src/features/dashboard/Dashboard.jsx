@@ -253,7 +253,7 @@ function DailyLineChart({ allReports, year, month, field }) {
                   </div>
                   {field === 'total' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      <div style={{ color: T.text, fontWeight: 600 }}>전체: {fmtMan(data.total)}</div>
+                      <div style={{ color: T.purple, fontWeight: 600 }}>전체: {fmtMan(data.total)}</div>
                       <div style={{ color: T.accent, fontWeight: 500 }}>직영: {fmtMan(data.direct)}</div>
                       <div style={{ color: T.green, fontWeight: 500 }}>지사: {fmtMan(data.branch)}</div>
                     </div>
@@ -281,7 +281,7 @@ function DailyLineChart({ allReports, year, month, field }) {
                 type="monotone"
                 dataKey="total"
                 name="전체"
-                stroke={T.text}
+                stroke={T.purple}
                 strokeWidth={2}
                 strokeDasharray="4 4"
                 dot={{ r: 3, strokeWidth: 1, fill: T.card }}
